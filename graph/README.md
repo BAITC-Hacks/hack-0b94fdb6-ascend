@@ -97,6 +97,8 @@ priority_score = raw/max(raw), 6 знаков; если max=0, всем 0
 
 ## OpenAI-агент
 
+Поддерживаемая реализация вынесена в отдельную папку `ai_agent/` по новому запросу владельца. `graph.assistant` сохранён как совместимый импорт. Готовое окно чата, команды запуска и подключение к сайту: [ai_agent/README.md](../ai_agent/README.md). Операции над снимком находятся в `graph/query.py`.
+
 ```console
 python -m pip install -r graph/requirements-optional.txt
 ```
