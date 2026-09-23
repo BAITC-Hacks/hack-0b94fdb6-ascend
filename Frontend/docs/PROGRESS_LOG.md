@@ -36,4 +36,14 @@
 
 ## Next integration checkpoint
 
+## Checkpoint 5 — connected role and cluster PNGs
+
+- Exported 11 text-free PNGs with transparent outer corners, a contact sheet and a ZIP archive.
+- Connected the approved colored icons to all six analytical roles and the three mock clusters.
+- Added mode-aware client icons, graph artwork, selected-role and cluster badges, and RU/KZ/EN legends.
+- Kept the neutral gray export out of the interface and preserved all analytical classifications and scores.
+- Verified production build, motion tests, image loading, role/cluster switches, GID search and viewport bounds. No captured browser warnings or errors.
+
+## Upcoming integration
+
 - Align frontend data adapters and copy only the final backend response contract after `Project.md` and team API decisions are available.
