@@ -3,8 +3,8 @@ import cytoscape, { type Core } from 'cytoscape'
 import { Maximize2, Minus, Plus, Pause, Play, Activity, Network, Layers3 } from 'lucide-react'
 import type { GraphEdge, GraphNode } from '../types/graph'
 import { getClusterColor, roleMeta } from '../data/mockData'
-import { riskColors, riskIndex, type Copy } from '../i18n'
-import { riskNodeImage } from './RiskAvatar'
+import { riskColors, riskIndex, roleOrder, type Copy } from '../i18n'
+import { getNodeArtwork, getClusterArtwork, roleArtwork } from '../data/networkArtwork'
 import { KazakhstanMap } from './KazakhstanMap'
 import { attachFlowAnimation } from './flowAnimation'
 
@@ -30,7 +30,7 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
       minZoom: .25, maxZoom: 3, pixelRatio: Math.min(window.devicePixelRatio, 2),
       style: [
         { selector: 'node', style: {
-          'background-color': '#102019', 'background-image': 'data(portrait)', 'background-fit': 'contain',
+          'background-color': '#102019', 'background-opacity': 0, 'background-image': 'data(portrait)', 'background-fit': 'contain',
           shape: 'round-rectangle',
           'border-width': 0, width: 38, height: 38, label: 'data(label)', color: '#c4d6c9',
           'font-size': 12, 'text-valign': 'bottom', 'text-margin-y': 8,
@@ -69,7 +69,7 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
     cy.batch(() => {
       cy.elements().remove()
       cy.add([
-        ...nodes.map(node => ({ data: { id: node.id, label: node.gid, color: color(node), portrait: riskNodeImage(node.priorityScore, color(node), colorMode === 'priority') }, position: { x: node.x * 8, y: node.y * 6 } })),
+        ...nodes.map(node => ({ data: { id: node.id, label: node.gid, color: color(node), portrait: getNodeArtwork(node, colorMode) }, position: { x: node.x * 8, y: node.y * 6 } })),
         ...edges.filter(edge => byId.has(edge.source) && byId.has(edge.target)).map(edge => ({ data: { ...edge, color: color(byId.get(edge.source)!) } })),
       ])
     })
@@ -115,6 +115,10 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
       <canvas ref={flowCanvas} className="flow-canvas" aria-hidden="true"/>
       {!nodes.length && <div className="graph-empty">{t.empty}</div>}
     </div>
+    {colorMode !== 'priority' && <div className="network-artwork-legend" aria-label={colorMode === 'role' ? t.roles : t.clusters}>
+      {colorMode === 'role' ? roleOrder.map((role, index) => <span key={role}><img src={roleArtwork[role]} alt="" width="24" height="24"/>{t.role[index]}</span>)
+        : [...new Set(nodes.map(node => node.clusterId))].sort((a, b) => a - b).map(id => <span key={id}><img src={getClusterArtwork(id)} alt="" width="24" height="24"/>{t.cluster} #{id}</span>)}
+    </div>}
     <div className="network-bottom"><span><i/>{t.direction}</span><span>{nodes.length} {t.nodes.toLowerCase()} · {edges.length} {t.edges.toLowerCase()}</span></div>
   </div>
 }
