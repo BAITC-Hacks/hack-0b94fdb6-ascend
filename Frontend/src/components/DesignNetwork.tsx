@@ -10,12 +10,13 @@ import { selectGraphView } from '../graphView'
 type Mode = 'priority' | 'role' | 'cluster'
 interface Props {
   limit: number
+  contextIds?: string[]; contextLabel?: string; onExitContext: () => void
   nodes: GraphNode[]; edges: GraphEdge[]; selectedId: string; onSelect: (id: string) => void
   t: Copy; colorMode: Mode; onColorMode: (mode: Mode) => void; motion: boolean; onMotion: () => void
 }
 const modeIcons = [Activity, Network, Layers3]
 
-export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode, onColorMode, motion, onMotion, limit }: Props) {
+export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode, onColorMode, motion, onMotion, limit, contextIds, contextLabel, onExitContext }: Props) {
   const container = useRef<HTMLDivElement>(null)
   const flowCanvas = useRef<HTMLCanvasElement>(null)
   const graph = useRef<Core | null>(null)
@@ -27,7 +28,7 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
     if (previousLimit.current !== limit) setView('top')
     previousLimit.current = limit
   }, [limit])
-  const visible = useMemo(() => selectGraphView(nodes, edges, selectedId, view, limit), [nodes, edges, selectedId, view, limit])
+  const visible = useMemo(() => contextIds ? { nodes, edges } : selectGraphView(nodes, edges, selectedId, view, limit), [nodes, edges, selectedId, view, limit, contextIds])
   const handler = useRef(onSelect)
   handler.current = onSelect
 
@@ -53,6 +54,8 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
         { selector: 'edge', style: { width: 1.5, 'line-color': 'data(color)', 'target-arrow-color': 'data(color)',
           'target-arrow-shape': 'triangle', 'arrow-scale': .75, 'curve-style': 'unbundled-bezier',
           'control-point-distances': 22, 'control-point-weights': .5, opacity: .22 } },
+        { selector: 'node.priority-focus', style: { width:26, height:26, 'border-color':'#c2b5ff', 'border-width':3, 'border-style':'solid' } },
+        { selector: 'edge.context-link', style: { opacity:.4 } },
         { selector: 'node.context', style: { opacity: .35 } },
         { selector: 'edge.focused', style: { width: 2.2, opacity: .75 } },
         { selector: 'edge.hovered', style: { width: 3, opacity: 1, label: 'data(amount)', color: '#eef0fa',
@@ -89,7 +92,7 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
     })
     if (changed && visible.nodes.length) {
       // Layout only the visible subgraph; large overviews use a cheap grid.
-      cy.layout(visible.nodes.length <= 300
+      cy.layout(visible.nodes.length <= (contextIds ? 600 : 300)
         ? { name:'cose', animate:false, randomize:false, fit:true, padding:40, nodeRepulsion:8000, idealEdgeLength:90, nodeOverlap:20, componentSpacing:100, numIter:350 }
         : { name:'grid', fit:true, padding:40, avoidOverlap:true }).run()
     }
@@ -102,8 +105,10 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
     cy.nodes().unselect().removeClass('context'); cy.edges().removeClass('focused')
     const node = cy.getElementById(selectedId)
     node.select(); node.connectedEdges().addClass('focused')
-    if (node.length) { cy.nodes().addClass('context'); node.closedNeighborhood().removeClass('context') }
-  }, [selectedId, visible, colorMode])
+    if (node.length && !contextIds) { cy.nodes().addClass('context'); node.closedNeighborhood().removeClass('context') }
+    cy.nodes().removeClass('priority-focus'); cy.edges().removeClass('context-link')
+    if(contextIds) { contextIds.forEach(id=>cy.getElementById(id).addClass('priority-focus')); cy.edges().addClass('context-link') }
+  }, [selectedId, visible, colorMode, contextIds])
 
   useEffect(() => {
     if (!graph.current || !flowCanvas.current || !container.current) return
@@ -122,14 +127,16 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
         return <button key={mode} aria-pressed={colorMode === mode} onClick={() => onColorMode(mode)}><Icon size={12}/>{[t.signals, t.roles, t.clusters][index]}</button>
       })}</div>
       <div className="network-controls">
-        <button className="neighborhood-button" aria-label="Связи выбранного узла" aria-pressed={view==='neighbors'} onClick={() => setView(v=>v==='neighbors'?'top':'neighbors')}>Связи узла</button>
-        <button className="full-graph-button" aria-pressed={view==='all'} onClick={() => setView(v=>v==='all'?'top':'all')}>{view==='all'?`Топ-${limit}`:'Все узлы'}</button>
+        {!contextIds && <><button className="neighborhood-button" aria-label="Связи выбранного узла" aria-pressed={view==='neighbors'} onClick={() => setView(v=>v==='neighbors'?'top':'neighbors')}>Связи узла</button>
+        <button className="full-graph-button" aria-pressed={view==='all'} onClick={() => setView(v=>v==='all'?'top':'all')}>{view==='all'?`Топ-${limit}`:'Все узлы'}</button></>}
+        {contextIds && <button className="full-graph-button" onClick={onExitContext}>Сбросить уровень</button>}
         <button disabled={visible.nodes.length > 100} aria-label={motion ? t.pause : t.play} aria-pressed={motion} onClick={onMotion}>{motion ? <Pause size={14}/> : <Play size={14}/>}</button>
         <button aria-label={t.zoomOut} onClick={() => zoomBy(-.2)}><Minus size={15}/></button>
         <button aria-label={t.zoomIn} onClick={() => zoomBy(.2)}><Plus size={15}/></button>
         <button aria-label={t.fit} onClick={() => graph.current?.fit(undefined, 28)}><Maximize2 size={15}/></button>
       </div>
     </div>
+    {contextIds && <div className="graph-context-note"><span><b>{contextLabel}: {contextIds.length}</b> · все непосредственные соседи и связи между ними</span><span>Обведённые узлы — выбранный уровень</span></div>}
     <div className="network-viewport">
       <div className="cy-container" ref={container}/>
       <canvas ref={flowCanvas} className="flow-canvas" aria-hidden="true"/>
@@ -139,6 +146,6 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
       {colorMode === 'role' ? roleOrder.map((role, index) => <span key={role}><i className="legend-dot" style={{background:roleMeta[role].color}}/>{t.role[index]}</span>)
         : [...new Set(visible.nodes.map(node => node.clusterId))].sort((a, b) => a - b).map(id => <span key={id}><i className="legend-dot" style={{background:getClusterColor(id)}}/>{t.cluster} #{id}</span>)}
     </div>}
-    <div className="network-bottom"><span><i/>{t.direction}</span><span>{view==='neighbors'?'Связи узла · ':view==='top'?'Приоритетные · ':''}{visible.nodes.length} из {nodes.length} узлов · {visible.edges.length} связей</span></div>
+    <div className="network-bottom"><span><i/>{t.direction}</span><span>{contextIds?'Полное окружение · ':view==='neighbors'?'Связи узла · ':view==='top'?'Приоритетные · ':''}{visible.nodes.length} из {nodes.length} узлов · {visible.edges.length} связей</span></div>
   </div>
 }

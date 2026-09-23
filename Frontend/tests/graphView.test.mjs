@@ -1,10 +1,25 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { selectGraphView } from '../src/graphView.ts'
+import { selectGraphView, selectNodeContext } from '../src/graphView.ts'
 
 const nodes = Array.from({ length: 2248 }, (_, i) => ({ id: String(10000 + i), priorityScore: 1 - i / 2248 }))
 const selected = nodes.at(-1).id
 const edges = nodes.slice(0, 200).map(n => ({ source: selected, target: n.id }))
+
+test('priority context has no page cap and includes neighbor links, but not second-hop nodes', () => {
+  const links = [...edges,
+    { source: nodes[1].id, target: nodes[2].id },
+    { source: nodes[1].id, target: nodes[500].id },
+  ]
+  const context = selectNodeContext(nodes, links, [selected])
+  assert.equal(context.nodes.length, 201)
+  assert.equal(context.edges.length, 201)
+  assert.ok(context.edges.some(e => e.source === nodes[1].id && e.target === nodes[2].id))
+  assert.ok(!context.nodes.some(n => n.id === nodes[500].id))
+  assert.equal(selectNodeContext(nodes, links, [selected, nodes[1].id]).nodes.length, 202)
+  assert.deepEqual(selectNodeContext(nodes, links, []), { nodes: [], edges: [] })
+  assert.deepEqual(selectNodeContext(nodes, [], [selected]), { nodes: [nodes.at(-1)], edges: [] })
+})
 
 test('bounded view retains a searched low-priority node and never creates dangling edges', () => {
   const result = selectGraphView(nodes, edges, selected, 'top')

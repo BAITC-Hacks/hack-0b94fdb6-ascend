@@ -76,6 +76,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .network-viewport { background-image:radial-gradient(#7184b41c .7px,transparent .7px); background-size:28px 28px; }
 .network-bottom { color:#95a2bc; font-size:10px; }
 .network-bottom i { background:#9584c4; }
+.graph-context-note { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; padding:0 22px 12px; color:var(--muted); font-size:11px; line-height:1.5; }
+.graph-context-note b { color:#d9cdf8; font-weight:500; }
 .network-artwork-legend { background:var(--page); border-color:var(--line); }
 .network-artwork-legend>span { color:var(--muted); font-size:10px; gap:7px; }
 .legend-dot { display:inline-block; width:6px; height:6px; border-radius:50%; }
