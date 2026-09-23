@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import cytoscape, { type Core } from 'cytoscape'
 import { Maximize2, Minus, Plus, Pause, Play, Activity, Network, Layers3 } from 'lucide-react'
 import type { GraphEdge, GraphNode } from '../types/graph'
 import { getClusterColor, roleMeta } from '../data/mockData'
 import { riskColors, riskIndex, roleOrder, type Copy } from '../i18n'
-import { getNodeArtwork, getClusterArtwork, roleArtwork } from '../data/networkArtwork'
-import { KazakhstanMap } from './KazakhstanMap'
+import { getClusterArtwork, roleArtwork } from '../data/networkArtwork'
 import { attachFlowAnimation } from './flowAnimation'
+import { selectGraphView } from '../graphView'
 
 type Mode = 'priority' | 'role' | 'cluster'
 interface Props {
@@ -17,10 +17,10 @@ const modeIcons = [Activity, Network, Layers3]
 
 export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode, onColorMode, motion, onMotion }: Props) {
   const container = useRef<HTMLDivElement>(null)
-  const mapScene = useRef<SVGGElement>(null)
   const flowCanvas = useRef<HTMLCanvasElement>(null)
   const graph = useRef<Core | null>(null)
-  const [neighborhood, setNeighborhood] = useState(false)
+  const [view, setView] = useState<'top'|'neighbors'|'all'>('top')
+  const visible = useMemo(() => selectGraphView(nodes, edges, selectedId, view), [nodes, edges, selectedId, view])
   const handler = useRef(onSelect)
   handler.current = onSelect
 
@@ -31,16 +31,15 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
       minZoom: .02, maxZoom: 3, pixelRatio: Math.min(window.devicePixelRatio, 2),
       style: [
         { selector: 'node', style: {
-          'background-color': '#102019', 'background-opacity': 0, 'background-image': 'data(portrait)', 'background-fit': 'contain',
-          shape: 'round-rectangle',
-          'border-width': 0, width: 38, height: 38, label: '', color: '#c4d6c9',
+          'background-color': 'data(color)', 'background-opacity': 1,
+          shape: 'ellipse',
+          'border-width': 0, width: 16, height: 16, label: '', color: '#c4d6c9',
           'font-size': 12, 'min-zoomed-font-size': 9, 'text-valign': 'bottom', 'text-margin-y': 8,
           'text-background-color': '#0a1710', 'text-background-opacity': .9, 'text-background-padding': '4px',
         } },
-        { selector: 'node:selected', style: { width: 48, height: 48, 'border-color': '#d8edbb', 'border-width': 1.5,
+        { selector: 'node:selected', style: { width: 28, height: 28, 'border-color': '#d8edbb', 'border-width': 1.5,
           'font-weight': 600, color: '#fff', 'overlay-color': 'data(color)', 'overlay-opacity': .09, 'overlay-padding': 12 } },
         { selector: 'node:selected, node.hovered', style: { label: 'data(label)' } },
-        { selector: '.outside-neighborhood', style: { display: 'none' } },
         { selector: 'node.seed', style: { 'border-width': 3, 'border-color': '#ecedb8' } },
         { selector: 'node.boundary', style: { 'border-width': 2, 'border-style': 'dashed', 'border-color': '#afbab0' } },
         { selector: 'node.isolated', style: { 'background-opacity': 0, 'border-width': 1, 'border-color': '#afbab0' } },
@@ -58,12 +57,7 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
     cy.on('mouseout', 'node', event => event.target.removeClass('hovered'))
     cy.on('mouseover', 'edge', event => event.target.addClass('hovered'))
     cy.on('mouseout', 'edge', event => event.target.removeClass('hovered'))
-    const syncMap = () => {
-      const pan = cy.pan()
-      mapScene.current?.setAttribute('transform', `translate(${pan.x} ${pan.y}) scale(${cy.zoom()})`)
-    }
-    cy.on('pan zoom resize', syncMap)
-    const observer = new ResizeObserver(() => { cy.resize(); cy.fit(undefined, 28); syncMap() })
+    const observer = new ResizeObserver(() => { cy.resize(); cy.fit(undefined, 28) })
     observer.observe(container.current)
     return () => { observer.disconnect(); cy.destroy(); graph.current = null }
   }, [])
@@ -73,16 +67,16 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
     if (!cy) return
     const color = (node: GraphNode) => colorMode === 'priority' ? riskColors[riskIndex(node.priorityScore)]
       : colorMode === 'cluster' ? getClusterColor(node.clusterId) : roleMeta[node.role].color
-    const byId = new Map(nodes.map(node => [node.id, node]))
+    const byId = new Map(visible.nodes.map(node => [node.id, node]))
     cy.batch(() => {
       cy.elements().remove()
       cy.add([
-        ...nodes.map(node => ({ data: { id: node.id, label: node.gid, color: color(node), portrait: getNodeArtwork(node, colorMode) }, classes: [node.isSeed?'seed':'',node.isBoundary?'boundary':'',node.isIsolated?'isolated':''].join(' '), position: { x: node.x, y: node.y } })),
-        ...edges.filter(edge => byId.has(edge.source) && byId.has(edge.target)).map(edge => ({ data: { ...edge, color: color(byId.get(edge.source)!) } })),
+        ...visible.nodes.map(node => ({ data: { id: node.id, label: node.gid, color: color(node) }, classes: [node.isSeed?'seed':'',node.isBoundary?'boundary':'',node.isIsolated?'isolated':''].join(' '), position: { x: node.x, y: node.y } })),
+        ...visible.edges.filter(edge => byId.has(edge.source) && byId.has(edge.target)).map(edge => ({ data: { ...edge, color: color(byId.get(edge.source)!) } })),
       ])
     })
     cy.fit(undefined, 28)
-  }, [nodes, edges, colorMode])
+  }, [visible, colorMode])
 
   useEffect(() => {
     const cy = graph.current
@@ -90,24 +84,12 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
     cy.nodes().unselect(); cy.edges().removeClass('focused')
     const node = cy.getElementById(selectedId)
     node.select(); node.connectedEdges().addClass('focused')
-  }, [selectedId, nodes, edges, colorMode])
-
-  useEffect(() => {
-    const cy = graph.current
-    if (!cy) return
-    cy.elements().removeClass('outside-neighborhood')
-    const node = cy.getElementById(selectedId)
-    if (neighborhood && node.length) {
-      cy.elements().addClass('outside-neighborhood')
-      node.closedNeighborhood().removeClass('outside-neighborhood')
-    }
-    cy.fit(cy.elements(':visible'), 28)
-  }, [neighborhood, selectedId, nodes, edges, colorMode])
+  }, [selectedId, visible, colorMode])
 
   useEffect(() => {
     if (!graph.current || !flowCanvas.current || !container.current) return
-    return attachFlowAnimation(graph.current, flowCanvas.current, container.current, motion)
-  }, [motion])
+    return attachFlowAnimation(graph.current, flowCanvas.current, container.current, motion && visible.nodes.length <= 100)
+  }, [motion, visible.nodes.length])
 
   const zoomBy = (step: number) => {
     const cy = graph.current
@@ -121,25 +103,23 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
         return <button key={mode} aria-pressed={colorMode === mode} onClick={() => onColorMode(mode)}><Icon size={12}/>{[t.signals, t.roles, t.clusters][index]}</button>
       })}</div>
       <div className="network-controls">
-        <button className="neighborhood-button" aria-label="Связи выбранного узла" aria-pressed={neighborhood} onClick={() => setNeighborhood(v=>!v)}>1 hop</button>
-        <button aria-label={motion ? t.pause : t.play} aria-pressed={motion} onClick={onMotion}>{motion ? <Pause size={14}/> : <Play size={14}/>}</button>
+        <button className="neighborhood-button" aria-label="Связи выбранного узла" aria-pressed={view==='neighbors'} onClick={() => setView(v=>v==='neighbors'?'top':'neighbors')}>1 hop</button>
+        <button className="full-graph-button" aria-pressed={view==='all'} onClick={() => setView(v=>v==='all'?'top':'all')}>{view==='all'?'Топ-100':'Все узлы'}</button>
+        <button disabled={visible.nodes.length > 100} aria-label={motion ? t.pause : t.play} aria-pressed={motion} onClick={onMotion}>{motion ? <Pause size={14}/> : <Play size={14}/>}</button>
         <button aria-label={t.zoomOut} onClick={() => zoomBy(-.2)}><Minus size={15}/></button>
         <button aria-label={t.zoomIn} onClick={() => zoomBy(.2)}><Plus size={15}/></button>
-        <button aria-label={t.fit} onClick={() => { setNeighborhood(false); graph.current?.fit(undefined, 28) }}><Maximize2 size={15}/></button>
+        <button aria-label={t.fit} onClick={() => graph.current?.fit(undefined, 28)}><Maximize2 size={15}/></button>
       </div>
     </div>
     <div className="network-viewport">
-      <KazakhstanMap sceneRef={mapScene}/>
-      <span className="map-caption">Схема связей, не география клиентов</span>
-      <div className="map-aura" aria-hidden="true"/>
       <div className="cy-container" ref={container}/>
       <canvas ref={flowCanvas} className="flow-canvas" aria-hidden="true"/>
-      {!nodes.length && <div className="graph-empty">{t.empty}</div>}
+      {!visible.nodes.length && <div className="graph-empty">{t.empty}</div>}
     </div>
     {colorMode !== 'priority' && <div className="network-artwork-legend" aria-label={colorMode === 'role' ? t.roles : t.clusters}>
       {colorMode === 'role' ? roleOrder.map((role, index) => <span key={role}><img src={roleArtwork[role]} alt="" width="24" height="24"/>{t.role[index]}</span>)
-        : [...new Set(nodes.map(node => node.clusterId))].sort((a, b) => a - b).map(id => <span key={id}><img src={getClusterArtwork(id)} alt="" width="24" height="24"/>{t.cluster} #{id}</span>)}
+        : [...new Set(visible.nodes.map(node => node.clusterId))].sort((a, b) => a - b).map(id => <span key={id}><img src={getClusterArtwork(id)} alt="" width="24" height="24"/>{t.cluster} #{id}</span>)}
     </div>}
-    <div className="network-bottom"><span><i/>{t.direction}</span><span>{neighborhood?'Связи выбранного узла в текущем фильтре':`${nodes.length} ${t.nodes.toLowerCase()} · ${edges.length} ${t.edges.toLowerCase()}`}</span></div>
+    <div className="network-bottom"><span><i/>{t.direction}</span><span>{view==='neighbors'?'Связи узла · ':view==='top'?'Приоритетные · ':''}{visible.nodes.length} из {nodes.length} узлов · {visible.edges.length} связей</span></div>
   </div>
 }

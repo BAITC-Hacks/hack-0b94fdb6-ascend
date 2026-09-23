@@ -26,7 +26,7 @@ export default function DesignDashboard() {
   useEffect(()=>{if(nodes.length && !nodes.some(n=>n.id===selectedId))setSelectedId(nodes[0].id)},[nodes,selectedId])
   const [query,setQuery]=useState(''); const [searchError,setSearchError]=useState(false)
   const [role,setRole]=useState('all');const [cluster,setCluster]=useState('all');const [tierFilter,setTierFilter]=useState<number|null>(null)
-  const [colorMode,setColorMode]=useState<'priority'|'role'|'cluster'>('priority');const [motion,setMotion]=useState(true)
+  const [colorMode,setColorMode]=useState<'priority'|'role'|'cluster'>('priority');const [motion,setMotion]=useState(false)
   useEffect(()=>{document.documentElement.lang=language;try{localStorage.setItem('freedom-language',language)}catch{/* Storage is optional. */}},[language])
   const base=nodes.find(n=>n.id===selectedId)
   const selected=base && {...base, incoming:detail.card?.node.in_deg ?? 0, outgoing:detail.card?.node.out_deg ?? 0, received:detail.card?money(detail.card.node.in_kzt):'—', sent:detail.card?money(detail.card.node.out_kzt):'—', evidence:detail.card?.node.evidence ?? ''}
