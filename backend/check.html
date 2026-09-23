@@ -42,7 +42,7 @@ document.getElementById('ask-form').onsubmit=async event=>{
  if(!response.ok){out.textContent=data.error?.message||'Ошибка сервиса';document.getElementById('ai-tools').textContent='Запрос завершился ошибкой.';return;}
  out.textContent=data.answer;conversationRun=data.run_id;
  history=[...history,{role:'user',content:question},{role:'assistant',content:data.answer.slice(0,4000)}].slice(-6);
- document.getElementById('ai-tools').textContent=JSON.stringify({run_id:data.run_id,tool_calls:data.tool_calls},null,2);
+ document.getElementById('ai-tools').textContent=JSON.stringify({run_id:data.run_id,answer_source:data.answer_source,tool_calls:data.tool_calls},null,2);
  for(const gid of data.gids||[]){const button=document.createElement('button');button.textContent='Узел '+gid;button.onclick=()=>{document.getElementById('gid').value=gid;query('nodes/'+encodeURIComponent(gid));};document.getElementById('ai-gids').append(button);}
  }catch(error){out.textContent=error.name==='TimeoutError'?'Время ожидания истекло. Попробуйте более конкретный вопрос.':'Сервис недоступен. Проверьте соединение.';}
  finally {clear.disabled=false;await refreshAI();}

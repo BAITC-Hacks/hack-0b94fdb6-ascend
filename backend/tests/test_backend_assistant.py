@@ -55,8 +55,31 @@ class AssistantApiTests(unittest.TestCase):
         self.gid = next(iter(self.app.state.snapshot.nodes))
 
     def factory(self, provider, **options):
-        from graph.assistant import Assistant
-        return lambda snapshot: Assistant(snapshot, client=provider, enabled=True, model='test-model', **options)
+        from backend.assistant import build_agent
+        return lambda snapshot: build_agent(snapshot, client=provider, enabled=True, model='test-model', **options)
+
+    def test_rounded_top_draft_returns_all_ten_exact_nodes(self):
+        class TopClient(OfflineClient):
+            async def create(self, **kwargs):
+                self.calls.append(kwargs)
+                if len(self.calls) == 1:
+                    return SimpleNamespace(output=[SimpleNamespace(type='function_call', name='get_top',
+                        arguments=json.dumps({'n': 10, 'role': None, 'cluster_id': None}), call_id='top')], output_text='')
+                return SimpleNamespace(output=[], output_text=f'У #{self.gid} вход 985 тыс ₸.')
+        node = self.app.state.snapshot.nodes[self.gid]
+        node['in_kzt'] = 984635.0
+        provider = TopClient(self.gid)
+        with patch('backend.assistant.build_agent', side_effect=self.factory(provider)):
+            response = self.client.post('/api/v1/assistant', json={'question': 'выбери 10 приоритетных узлов'})
+        self.assertEqual(response.status_code, 200)
+        result = response.json()
+        self.assertEqual(len(result['gids']), 10)
+        self.assertEqual(result['gids'], list(self.app.state.snapshot.nodes)[:10])
+        self.assertIn('984635.0', result['answer'])
+        self.assertNotIn('985 тыс', result['answer'])
+        self.assertEqual(result['answer_source'], 'tool_result')
+        self.assertEqual(provider.calls[-1]['tool_choice'], 'none')
+        self.assertTrue(provider.closed)
 
     def test_real_agent_tool_roundtrip_and_close(self):
         provider = OfflineClient(self.gid)

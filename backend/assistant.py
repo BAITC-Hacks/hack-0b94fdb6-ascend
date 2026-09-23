@@ -46,9 +46,40 @@ def failure(code, message, status):
     return JSONResponse({'error': {'code': code, 'message': message, 'details': {}}}, status_code=status)
 
 
-def build_agent(snapshot):
+def build_agent(snapshot, **options):
     from graph.assistant import Assistant
-    return Assistant(snapshot)
+
+    class IntegratedAssistant(Assistant):
+        async def ask(self, question, history=None):
+            successful = []
+            dispatch = self.tools.dispatch
+
+            def record(name, args):
+                result = dispatch(name, args)
+                successful.append((name, result))
+                return result
+
+            self.tools.dispatch = record
+            try:
+                result = await super().ask(question, history)
+            finally:
+                self.tools.dispatch = dispatch
+            # The upstream financial report displays at most three cards. For a
+            # single top selection, render the entire returned list, without
+            # copying or relaxing validation of the model's numerical prose.
+            if len(successful) == 1 and successful[0][0] == 'get_top':
+                rows = successful[0][1]['items']
+                lines = [f'Приоритетные узлы: показано {len(rows)} из {successful[0][1]["total"]}.']
+                for node in rows:
+                    lines.append(f"• #{node['gid']} — {node['role']}; приоритет {node['priority_score']}; "
+                                 f"вход {node['in_kzt']} ₸; выход {node['out_kzt']} ₸.")
+                if successful[0][1].get('truncated'):
+                    lines.append('Показана только выбранная часть результатов.')
+                lines.append('Роли — гипотезы для проверки; суммы относятся к наблюдаемому срезу данных.')
+                result = dict(result, answer='\n'.join(lines), gids=[node['gid'] for node in rows], answer_source='tool_result')
+            return result
+
+    return IntegratedAssistant(snapshot, **options)
 
 
 async def answer(request, get_snapshot):
