@@ -39,6 +39,9 @@ def main():
             import pandas as pd
             for name in ('nodes', 'edges', 'clusters', 'top'):
                 pd.testing.assert_frame_equal(getattr(result, name), getattr(other, name))
+            from .extras.export import payload
+            if payload(result.extras) != payload(other.extras):
+                raise RuntimeError('Повторный расчёт extras дал другой результат')
             if payloads != csv_payloads(other):
                 raise RuntimeError('Повторный расчёт дал другие CSV')
         if args.output:
@@ -58,6 +61,8 @@ def main():
             try:
                 for name, content in payloads.items():
                     (temporary / name).write_bytes(content)
+                from .extras.export import write
+                write(temporary, result.extras)
                 temporary.rename(args.output)
             finally:
                 if temporary.exists():

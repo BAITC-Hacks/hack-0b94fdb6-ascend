@@ -19,9 +19,9 @@ def normalize(value, key='', nullable=False):
             return None
         raise ValueError(f'Недопустимое пустое поле: {key}')
     if isinstance(value, dict):
-        return {str(k): normalize(v, str(k), key == 'values') for k, v in value.items()}
+        return {str(k): normalize(v, str(k), nullable or key in ('values', 'extras')) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
-        return [normalize(v) for v in value]
+        return [normalize(v, nullable=nullable) for v in value]
     if isinstance(value, (date, datetime)):
         return value.isoformat()
     if isinstance(value, float):
@@ -38,6 +38,16 @@ def write_json(path, value):
 
 def write_snapshot(directory, result, run):
     snapshot = {'run': run, **{key: records(getattr(result, key)) for key in ['nodes', 'edges', 'clusters', 'top']}}
+    if getattr(result, 'extras', None):
+        try:
+            from graph.extras.export import payload, write
+            snapshot['extras'] = payload(result.extras)
+            write(directory, result.extras)
+        except Exception as exc:
+            snapshot.pop('extras', None)
+            warning = f'extras export: {type(exc).__name__}'
+            if warning not in result.quality['warnings']:
+                result.quality['warnings'].append(warning)
     write_json(directory / 'snapshot.json', snapshot)
     write_json(directory / 'run.json', run)
     write_json(directory / 'quality_report.json', result.quality)

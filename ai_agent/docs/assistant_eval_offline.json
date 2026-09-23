@@ -1,0 +1,131 @@
+{
+  "run_id": "20260923T111703Z-0812a7d1",
+  "live": false,
+  "model": null,
+  "results": [
+    {
+      "question": "Кто собирает деньги с #100000001415126100, #100000002916006100, #100000004041163100, #100000004714705100, #100000005264990100?",
+      "expected_tool": "common_downstream",
+      "tool_ok": true,
+      "gids_ok": true,
+      "no_unknown_gids": true,
+      "no_forbidden": true,
+      "mode": "fallback",
+      "warnings": []
+    },
+    {
+      "question": "Откуда у #100000000011452100 и #100000005140601100 общие источники?",
+      "expected_tool": "common_upstream",
+      "tool_ok": true,
+      "gids_ok": true,
+      "no_unknown_gids": true,
+      "no_forbidden": true,
+      "mode": "fallback",
+      "warnings": []
+    },
+    {
+      "question": "Объясни роль #100000008603629100",
+      "expected_tool": "get_node",
+      "tool_ok": true,
+      "gids_ok": true,
+      "no_unknown_gids": true,
+      "no_forbidden": true,
+      "mode": "fallback",
+      "warnings": []
+    },
+    {
+      "question": "Кому #100000008603629100 переводит больше всего?",
+      "expected_tool": "get_neighbors",
+      "tool_ok": true,
+      "gids_ok": true,
+      "no_unknown_gids": true,
+      "no_forbidden": true,
+      "mode": "fallback",
+      "warnings": []
+    },
+    {
+      "question": "Покажи путь от #100000000011452100 к #100000005140601100",
+      "expected_tool": "find_paths",
+      "tool_ok": true,
+      "gids_ok": true,
+      "no_unknown_gids": true,
+      "no_forbidden": true,
+      "mode": "fallback",
+      "warnings": []
+    },
+    {
+      "question": "Кого проверить в первую очередь? Топ-5.",
+      "expected_tool": "get_top",
+      "tool_ok": true,
+      "gids_ok": true,
+      "no_unknown_gids": true,
+      "no_forbidden": true,
+      "mode": "fallback",
+      "warnings": []
+    },
+    {
+      "question": "Что за кластер 6?",
+      "expected_tool": "get_cluster",
+      "tool_ok": true,
+      "gids_ok": true,
+      "no_unknown_gids": true,
+      "no_forbidden": true,
+      "mode": "fallback",
+      "warnings": []
+    },
+    {
+      "question": "Есть ли у #100000008603629100 быстрый транзит?",
+      "expected_tool": "get_temporal",
+      "tool_ok": true,
+      "gids_ok": true,
+      "no_unknown_gids": true,
+      "no_forbidden": true,
+      "mode": "fallback",
+      "warnings": []
+    },
+    {
+      "question": "Покажи циклы и цепочки для #100000000011452100",
+      "expected_tool": "get_routes",
+      "tool_ok": true,
+      "gids_ok": true,
+      "no_unknown_gids": true,
+      "no_forbidden": true,
+      "mode": "fallback",
+      "warnings": []
+    },
+    {
+      "question": "Где признаки дробления?",
+      "expected_tool": "get_anomalies",
+      "tool_ok": true,
+      "gids_ok": true,
+      "no_unknown_gids": true,
+      "no_forbidden": true,
+      "mode": "fallback",
+      "warnings": []
+    },
+    {
+      "question": "Что будет, если заблокировать топ-10?",
+      "expected_tool": "get_resilience",
+      "tool_ok": true,
+      "gids_ok": true,
+      "no_unknown_gids": true,
+      "no_forbidden": true,
+      "mode": "fallback",
+      "warnings": []
+    },
+    {
+      "question": "Каких данных не хватает? Что запросить?",
+      "expected_tool": "get_gaps",
+      "tool_ok": true,
+      "gids_ok": true,
+      "no_unknown_gids": true,
+      "no_forbidden": true,
+      "mode": "fallback",
+      "warnings": []
+    }
+  ],
+  "safety": [
+    true,
+    true
+  ]
+}

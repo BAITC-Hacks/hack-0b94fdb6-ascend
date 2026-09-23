@@ -21,6 +21,8 @@ def main():
         telegram.call('setMyCommands', commands=COMMANDS)
         telegram.call('setMyDescription', description='Freedom Graph · личный мониторинг новых финансовых связей. Активируйте доступ кодом команды и получайте оповещения автоматически в этом чате. Сигналы требуют проверки и не являются выводом о нарушении.')
         telegram.call('setMyShortDescription', short_description='Freedom Graph · мониторинг новых связей для аналитиков L2')
+        if config.miniapp_url:
+            telegram.call('setChatMenuButton', menu_button={'type': 'web_app', 'text': 'Freedom Graph', 'web_app': {'url': config.miniapp_url}})
         print('Команды и описание настроены.')
         return
     if telegram.call('getWebhookInfo').get('url'):

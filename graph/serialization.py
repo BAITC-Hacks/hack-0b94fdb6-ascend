@@ -22,6 +22,8 @@ def json_value(value, key=None):
 
 
 def snapshot(result, run=None):
+    from .extras.export import payload
     return json_value({'run': run or result.run_meta,
+                       'extras': payload(getattr(result, 'extras', {})),
                        'nodes': result.nodes.to_dict('records'), 'edges': result.edges.to_dict('records'),
                        'clusters': result.clusters.to_dict('records'), 'top': result.top.to_dict('records')})

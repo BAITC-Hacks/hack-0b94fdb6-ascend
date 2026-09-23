@@ -25,7 +25,9 @@ def report(facts):
             nodes.append((fact['node'], ''))
         elif 'items' in fact:
             for item in fact['items'][:3]:
-                nodes.append((item.get('node', item), ''))
+                edge=item.get('edge')
+                context=(f"Переводы #{edge['src']} → #{edge['dst']}: {amount(edge['sum_kzt'])} ₸, транзакций: {edge['n_tx']}." if edge else '')
+                nodes.append((item.get('node', item), context))
         elif 'nodes' in fact:
             nodes.extend((n, '') for n in fact['nodes'][:3])
         if fact.get('truncated'):

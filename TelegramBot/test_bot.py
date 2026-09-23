@@ -8,7 +8,7 @@ from .bot import Bot
 from .config import Config, safe_url
 from .demo import snapshot, OfflineBackend, OfflineTelegram
 from .engine import Store
-from .messages import alert, WELCOME
+from .messages import alert, WELCOME, menu
 from .transport import ServiceError, tls_context
 
 A, B, C = ('100000000000000001', '100000000000000002', '100000000000000003')
@@ -195,6 +195,14 @@ class BotTests(unittest.TestCase):
         context = tls_context()
         self.assertTrue(context.check_hostname)
         self.assertEqual(context.verify_mode, ssl.CERT_REQUIRED)
+
+    def test_miniapp_is_optional_and_uses_web_app_button(self):
+        self.assertFalse(any('web_app' in button for row in menu()['inline_keyboard'] for button in row))
+        button = menu(miniapp_url='https://example.com/miniapp')['inline_keyboard'][0][0]
+        self.assertEqual(button['web_app']['url'], 'https://example.com/miniapp')
+        for value in ('http://127.0.0.1:5175', 'http://example.com', 'https://example.com/?token=secret'):
+            with self.assertRaises(ValueError):
+                safe_url(value, public=True)
 
 
 if __name__ == '__main__':

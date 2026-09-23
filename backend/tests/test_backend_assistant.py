@@ -78,7 +78,7 @@ class AssistantApiTests(unittest.TestCase):
         self.assertIn('984635.0', result['answer'])
         self.assertNotIn('985 тыс', result['answer'])
         self.assertEqual(result['answer_source'], 'tool_result')
-        self.assertEqual(provider.calls[-1]['tool_choice'], 'none')
+        self.assertEqual(len(provider.calls),2)
         self.assertTrue(provider.closed)
 
     def test_real_agent_tool_roundtrip_and_close(self):
@@ -89,7 +89,8 @@ class AssistantApiTests(unittest.TestCase):
         result = response.json()
         self.assertEqual(result['mode'], 'ai')
         self.assertEqual(result['gids'], [self.gid])
-        self.assertEqual(result['tool_calls'], [{'name': 'get_node', 'args': {'gid': self.gid}}])
+        self.assertEqual(result['tool_calls'][0]['name'],'get_node')
+        self.assertTrue(result['tool_calls'][0]['ok'])
         self.assertEqual(result['run_id'], self.app.state.snapshot.data['run']['run_id'])
         self.assertEqual(len(provider.calls), 2)
         self.assertTrue(provider.closed)
@@ -97,14 +98,13 @@ class AssistantApiTests(unittest.TestCase):
         tool_outputs = [i for i in provider.calls[-1]['input'] if isinstance(i, dict) and i.get('type') == 'function_call_output']
         self.assertEqual(json.loads(tool_outputs[0]['output'])['node']['gid'], self.gid)
 
-    def test_disabled_missing_settings_never_calls_agent(self):
-        for variable in ['ASSISTANT_ENABLED', 'OPENAI_API_KEY', 'OPENAI_MODEL']:
-            with self.subTest(variable=variable), patch.dict(os.environ, {variable: ''}), patch('backend.assistant.build_agent') as factory:
-                self.assertFalse(self.client.get('/api/v1/health').json()['assistant_enabled'])
-                response = self.client.post('/api/v1/assistant', json={'question': 'Вопрос'})
-                self.assertEqual(response.status_code, 503)
-                self.assertEqual(response.json()['error']['code'], 'assistant_disabled')
-                factory.assert_not_called()
+    def test_missing_settings_use_local_fallback(self):
+        for variable in ['ASSISTANT_ENABLED','OPENAI_API_KEY','OPENAI_MODEL']:
+            with self.subTest(variable=variable), patch.dict(os.environ,{variable:''}), patch('openai.AsyncOpenAI') as provider:
+                response=self.client.post('/api/v1/assistant',json={'question':f'Объясни #{self.gid}'})
+                self.assertEqual(response.status_code,200)
+                self.assertEqual(response.json()['mode'],'fallback')
+                provider.assert_not_called()
 
     def test_invalid_requests_never_call_agent(self):
         invalid = [{}, {'question': '  '}, {'question': 123}, {'question': 'x' * 4001},
@@ -131,11 +131,11 @@ class AssistantApiTests(unittest.TestCase):
                 provider = OfflineClient(self.gid, mode)
                 with patch('backend.assistant.build_agent', side_effect=self.factory(provider, timeout=.01 if mode == 'timeout' else 30)):
                     response = self.client.post('/api/v1/assistant', json={'question': 'Объясни узел'})
-                self.assertEqual(response.status_code, 500)
-                self.assertEqual(response.json()['error']['code'], 'internal')
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json()['mode'], 'fallback')
                 self.assertNotIn('PROVIDER_SECRET', response.text)
                 self.assertTrue(provider.closed)
-                self.assertLessEqual(len(provider.calls), 5)
+                self.assertLessEqual(len(provider.calls), 6)
                 self.assertEqual(self.client.get('/api/v1/export/nodes_roles.csv').content, before)
 
     def test_inflight_answer_keeps_original_run(self):

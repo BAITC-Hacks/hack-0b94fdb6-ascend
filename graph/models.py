@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import pandas as pd
 
 ROLES = ('consolidator', 'distributor', 'transit', 'terminal', 'coordinator', 'peripheral')
@@ -18,3 +18,4 @@ class AnalysisResult:
     top: pd.DataFrame
     run_meta: dict
     quality: dict
+    extras: dict = field(default_factory=dict)

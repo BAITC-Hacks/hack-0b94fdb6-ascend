@@ -109,7 +109,7 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(client.get('/check').status_code, 200)
             self.assertNotIn('cdn', client.get('/check').text)
             self.assertEqual(client.get('/openapi.json').status_code, 200)
-        self.assertEqual(self.client.post('/api/v1/assistant').json()['error']['code'], 'assistant_disabled')
+        self.assertEqual(self.client.post('/api/v1/assistant').json()['error']['code'], 'invalid_param')
 
     def test_failed_attempt_visible_and_cors(self):
         self.assertEqual(run_pipeline(Path('missing'), self.output, Path('missing')), 2)

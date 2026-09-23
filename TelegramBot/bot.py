@@ -49,7 +49,7 @@ class Bot:
         self.telegram.send(uid, f'🟢 <b>Личный мониторинг активирован</b>\n\nTelegram ID: <code>{uid}</code>\n'
                            'Доступ подтверждён кодом команды. Новые оповещения будут приходить сюда автоматически — '
                            'запрашивать их каждый раз не нужно.\n\n'
-                           'Первый снимок — база сравнения. Ожидаем новые изменения, а не рассылаем старые связи.', menu(self.config.dashboard))
+                           'Первый снимок — база сравнения. Ожидаем новые изменения, а не рассылаем старые связи.', menu(self.config.dashboard, self.config.miniapp_url))
 
     def poll_graph(self):
         try:
@@ -123,7 +123,7 @@ class Bot:
             self.rate_limits.clear()
         self.rate_limits[uid] = now
         if command == 'start':
-            self.telegram.welcome(uid, WELCOME, menu(self.config.dashboard) if self.authorized(uid) else {'inline_keyboard': []})
+            self.telegram.welcome(uid, WELCOME, menu(self.config.dashboard, self.config.miniapp_url) if self.authorized(uid) else {'inline_keyboard': []})
             return
         if command == 'activate' and not callback:
             code = text.partition(' ')[2].strip()
@@ -155,8 +155,8 @@ class Bot:
                     self.store.db.execute('INSERT OR IGNORE INTO reviews VALUES (?,?)', (event_id, uid))
                 self.telegram.send(uid, f'✓ <b>Принято к проверке</b>\n<code>FG-{escape(event_id)}</code>\nВаша отметка сохранена; это не закрытие расследования.')
         elif command == 'status':
-            self.telegram.send(uid, self.status(uid), menu(self.config.dashboard))
+            self.telegram.send(uid, self.status(uid), menu(self.config.dashboard, self.config.miniapp_url))
         elif command == 'alerts':
             events = self.store.latest(uid)
             text = '📋 <b>Ваши последние оповещения</b>\n\n' + ('\n'.join(f'• <code>FG-{escape(e["id"])}</code> · {e["count"]} связей' for e in events) if events else 'Доставленных оповещений пока нет.')
-            self.telegram.send(uid, text, menu(self.config.dashboard))
+            self.telegram.send(uid, text, menu(self.config.dashboard, self.config.miniapp_url))
