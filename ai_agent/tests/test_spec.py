@@ -36,6 +36,12 @@ def test_fallback_and_refusal_never_invent_identity():
     assert answer(t,'Объясни #999')['gids']==[]
 
 
+def test_top_request_count_is_bounded_and_does_not_use_gid_as_count():
+    assert plan('Выбери 10 приоритетных узлов') == [('get_top', {'n': 10})]
+    assert plan('топ-100') == [('get_top', {'n': 20})]
+    assert plan('Кого проверить первым? #100000000000000001') == [('get_top', {'n': 5})]
+
+
 def test_extra_routes_missing_files_are_available_false(tmp_path):
     from fastapi.testclient import TestClient
     from ai_agent.app import create_app

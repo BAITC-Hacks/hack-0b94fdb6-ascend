@@ -406,6 +406,14 @@ export const interfaceCopy: Record<string, { en: string; kk: string }> = {
     "en": "Local analysis · no LLM",
     "kk": "Жергілікті талдау · LLM қолданылмайды"
   },
+  "Локальный помощник работает без внешней AI-модели.": {
+    "en": "The local assistant works without an external AI model.",
+    "kk": "Жергілікті көмекші сыртқы AI моделінсіз жұмыс істейді."
+  },
+  "Ответы формируются локально по правилам и данным графа. Внешняя AI-модель не используется.": {
+    "en": "Answers are generated locally from rules and graph data. No external AI model is used.",
+    "kk": "Жауаптар ережелер мен граф деректері бойынша жергілікті түрде жасалады. Сыртқы AI моделі қолданылмайды."
+  },
   "AI · факты из инструментов": {
     "en": "AI · facts from tools",
     "kk": "AI · құралдардан алынған деректер"

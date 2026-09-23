@@ -32,7 +32,7 @@ REQUEST_SCHEMA['properties']['history']['items'] = REQUEST_SCHEMA.pop('$defs')['
 
 def readiness():
     if os.getenv('ASSISTANT_ENABLED') != '1':
-        return False, 'AI-ассистент выключен: задайте ASSISTANT_ENABLED=1 в backend/.env'
+        return False, 'Локальный помощник работает без внешней AI-модели.'
     if not os.getenv('OPENAI_API_KEY', '').strip():
         return False, 'Не задан OPENAI_API_KEY в backend/.env'
     if not os.getenv('OPENAI_MODEL', '').strip():
@@ -56,7 +56,7 @@ def build_agent(snapshot, **options):
 
             def record(name, args):
                 result = dispatch(name, args)
-                successful.append((name, result))
+                successful.append((name, result, args))
                 return result
 
             self.tools.dispatch = record
@@ -68,12 +68,15 @@ def build_agent(snapshot, **options):
             # single top selection, render the entire returned list, without
             # copying or relaxing validation of the model's numerical prose.
             if len(successful) == 1 and successful[0][0] == 'get_top':
-                rows = successful[0][1]['items']
-                lines = [f'Приоритетные узлы: показано {len(rows)} из {successful[0][1]["total"]}.']
+                # The provider payload is bounded by bytes and may contain fewer
+                # rows than requested. Render the full validated selection locally.
+                selection = self.tools.get_top(**successful[0][2])
+                rows = selection['items']
+                lines = [f'Приоритетные узлы: показано {len(rows)} из {selection["total"]}.']
                 for node in rows:
                     lines.append(f"• #{node['gid']} — {node['role']}; приоритет {node['priority_score']}; "
                                  f"вход {node['in_kzt']} ₸; выход {node['out_kzt']} ₸.")
-                if successful[0][1].get('truncated'):
+                if selection.get('truncated'):
                     lines.append('Показана только выбранная часть результатов.')
                 lines.append('Роли — гипотезы для проверки; суммы относятся к наблюдаемому срезу данных.')
                 result = dict(result, answer='\n'.join(lines), gids=[node['gid'] for node in rows], answer_source='tool_result')

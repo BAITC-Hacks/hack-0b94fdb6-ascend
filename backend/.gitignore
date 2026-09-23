@@ -5,7 +5,11 @@ __pycache__/
 .env
 .env.*
 !.env.example
-data/
+data/*
+!data/nodes.parquet
+!data/edges.parquet
+!data/transactions.parquet
+!data/README.md
 output/
 output-demo/
 node_modules/

@@ -1,0 +1,16 @@
+**/.git
+**/.venv
+**/.jury-venv
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+**/.env
+**/.env.*
+**/*.pyc
+backend/output
+backend/output-demo
+TelegramBot/state
+**/*.log
+*.zip
+*.mp4
+*.pptx

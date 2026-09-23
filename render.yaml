@@ -1,0 +1,11 @@
+# Optional hosting configuration; adding this file does not publish a site.
+services:
+  - type: web
+    name: freedom-graph-ascend
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: PORT
+        value: "8000"

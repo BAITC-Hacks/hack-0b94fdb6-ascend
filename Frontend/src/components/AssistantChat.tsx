@@ -14,10 +14,11 @@ export function AssistantChat({ language, runId, selectedGid, onSelect, suggeste
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState('')
+  const [aiEnabled, setAiEnabled] = useState(false)
   const active = useRef<AbortController | null>(null)
   useEffect(()=>{if(suggestedPrompt){setQuestion(suggestedPrompt.text);setOpen(true)}},[suggestedPrompt])
   useEffect(() => { active.current?.abort(); active.current=null; setHistory([]); setReply(null); setError(''); setBusy(false); return () => { active.current?.abort(); active.current=null } }, [runId])
-  useEffect(() => { if (open) api<{ assistant_message: string }>('/health').then(h => setStatus(h.assistant_message)).catch(() => setStatus("API недоступен")) }, [open])
+  useEffect(() => { if (open) api<{ assistant_message: string; assistant_enabled: boolean }>('/health').then(h => {setStatus(h.assistant_message);setAiEnabled(h.assistant_enabled)}).catch(() => {setStatus("API недоступен");setAiEnabled(false)}) }, [open])
   async function send() {
     const text = question.trim()
     if (!text || busy) return
@@ -38,7 +39,7 @@ export function AssistantChat({ language, runId, selectedGid, onSelect, suggeste
     <button className="assistant-toggle" onClick={() => setOpen(!open)} aria-expanded={open}>{open ? tr("Закрыть AI") : tr("Спросить AI")}</button>
     {open && <section className="assistant-panel" aria-label={tr("AI-ассистент")}>
       <h2>{tr("AI-ассистент аналитика")}</h2><p>{tr(status)}</p>
-      <p className="assistant-disclosure">{tr("Вопрос и выбранные агентом факты передаются в OpenAI. Ответы — гипотезы для проверки.")}</p>
+      <p className="assistant-disclosure">{tr(aiEnabled ? "Вопрос и выбранные агентом факты передаются в OpenAI. Ответы — гипотезы для проверки." : "Ответы формируются локально по правилам и данным графа. Внешняя AI-модель не используется.")}</p>
       <div className="assistant-actions"><button disabled={busy} onClick={() => setQuestion(tr("Выбери 10 приоритетных узлов"))}>{tr("Топ-10")}</button><button disabled={busy || !selectedGid} onClick={() => setQuestion(tr("Объясни роль узла #{gid}",{gid:selectedGid}))}>{tr("Объяснить узел")}</button><button disabled={busy} onClick={() => { setHistory([]); setReply(null); setError('') }}>{tr("Новый разговор")}</button></div>
       <form onSubmit={e => { e.preventDefault(); void send() }}><textarea aria-label={tr("Вопрос агенту")} required maxLength={4000} value={question} onChange={e => setQuestion(e.target.value)} placeholder={tr("Какие узлы проверить первыми?")}/><button disabled={busy || !question.trim()}>{busy ? tr("Агент изучает данные…") : tr("Отправить вопрос")}</button></form>
       {error && <p className="integration-error" role="alert">{tr(error)}</p>}

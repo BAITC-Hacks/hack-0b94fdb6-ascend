@@ -1,0 +1,12 @@
+services:
+  web:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import json,urllib.request; d=json.load(urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=5)); assert d['run_id']"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3

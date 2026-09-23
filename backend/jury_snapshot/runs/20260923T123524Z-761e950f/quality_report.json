@@ -1,0 +1,12 @@
+{
+  "warnings": [],
+  "self_loops": [],
+  "edge_depth_mismatches": 0,
+  "transaction_reconciliation": "passed",
+  "counts": {
+    "nodes": 2248,
+    "edges": 3119,
+    "transactions": 4840,
+    "seeds": 81
+  }
+}

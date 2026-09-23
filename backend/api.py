@@ -1,6 +1,7 @@
 """Read-only snapshot API. Reload swaps a complete state in one assignment."""
 import json
 import logging
+import mimetypes
 import os
 import re
 from collections import deque
@@ -251,6 +252,12 @@ def create_app(output_dir=None, frontend_dir=None):
     @app.get('/check', response_class=HTMLResponse, include_in_schema=False)
     def check():
         return (Path(__file__).parent / 'check.html').read_text(encoding='utf-8')
+
+    miniapp = Path(__file__).parent.parent / 'TelegramBot' / 'miniapp'
+    if (miniapp / 'index.html').is_file():
+        # Windows registry mappings can otherwise return text/plain for ES modules.
+        mimetypes.add_type('text/javascript', '.mjs')
+        app.mount('/miniapp', StaticFiles(directory=miniapp, html=True), name='miniapp')
 
     dist = Path(frontend_dir) if frontend_dir is not None else Path(__file__).parent.parent / 'Frontend' / 'dist'
     if (dist / 'index.html').exists():

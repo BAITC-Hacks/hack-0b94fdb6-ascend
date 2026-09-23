@@ -29,8 +29,8 @@ def plan(question):
     if re.search(r'найди|найти|покажи узлы',q):
         role=next((r for word,r in [('консолид','consolidator'),('распредел','distributor'),('транзит','transit'),('координатор','coordinator')] if word in q),None)
         return [('find_nodes',{'role':role,'limit':10})]
-    if re.search(r'топ|главные|первую очередь|кого провер|приоритет',q):
-        count=re.search(r'(?:топ[- ]?|первых? )([0-9]{1,2})(?![0-9])',q)
+    if re.search(r'топ|главные|первую очередь|кого провер|приоритет|\btop\b|priority|басым',q):
+        count=re.search(r'(?<![\d#])([0-9]{1,3})(?![0-9])',q)
         return [('get_top',{'n':max(1,min(20,int(count[1]))) if count else 5})]
     if ids and re.search(r'кому|сосед|контрагент',q):return [('get_neighbors',{'gid':ids[0],'direction':'out' if 'кому' in q else 'both','limit':10,'sort':'sum'})]
     if ids:return [('get_node_card' if re.search(r'справк|карточк',q) else 'get_node',{'gid':g}) for g in ids[:2]]
