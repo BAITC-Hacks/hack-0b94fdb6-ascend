@@ -1,4 +1,7 @@
 import json
+import os
+import ssl
+import sys
 import urllib.error
 import urllib.request
 import uuid
@@ -21,10 +24,20 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+def tls_context():
+    context = ssl.create_default_context()
+    # python.org builds on macOS may lack their own CA bundle. Use the OS
+    # bundle, preserving certificate and hostname verification in full.
+    system_bundle = Path('/etc/ssl/cert.pem')
+    if sys.platform == 'darwin' and not os.environ.get('SSL_CERT_FILE') and system_bundle.is_file():
+        context.load_verify_locations(cafile=str(system_bundle))
+    return context
+
+
 def request_json(url, *, data=None, headers=None, service='API', timeout=20):
     request = urllib.request.Request(url, data=data, headers=headers or {})
     try:
-        with urllib.request.build_opener(NoRedirect()).open(request, timeout=timeout) as response:
+        with urllib.request.build_opener(NoRedirect(), urllib.request.HTTPSHandler(context=tls_context())).open(request, timeout=timeout) as response:
             raw = response.read(32 * 1024 * 1024 + 1)
             if len(raw) > 32 * 1024 * 1024:
                 raise ServiceError(service)
