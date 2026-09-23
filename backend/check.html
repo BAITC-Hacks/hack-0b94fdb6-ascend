@@ -8,7 +8,46 @@
 <p><input id="gid" placeholder="gid узла" inputmode="numeric"><button id="node">Открыть узел</button></p>
 <p>Скачать: <a href="/api/v1/export/nodes_roles.csv">узлы CSV</a> · <a href="/api/v1/export/clusters.csv">кластеры CSV</a> · <a href="/api/v1/export/top_nodes.csv">топ CSV</a> · <a href="/openapi.json">схема API</a></p>
 <pre id="result">Выберите запрос.</pre>
+<h2>AI-ассистент аналитика</h2>
+<p id="ai-status" role="status">Проверяем настройки агента…</p>
+<form id="ask-form">
+<label for="question">Вопрос по данным</label><br>
+<textarea id="question" rows="3" maxlength="4000" required style="width:95%;font:inherit;padding:10px" placeholder="Покажи 5 приоритетных узлов и объясни, что проверить"></textarea><br>
+<button id="ask" type="submit">Спросить агента</button>
+<button id="clear-history" type="button">Новый разговор</button>
+</form>
+<pre id="ai-answer" aria-live="polite">Здесь появится ответ. При отправке вопрос и выбранные агентом факты передаются в OpenAI.</pre>
+<div id="ai-gids"></div>
+<details><summary>Вызванные инструменты</summary><pre id="ai-tools">Пока нет запросов.</pre></details>
 <script>
+let history=[], conversationRun=null;
+async function refreshAI(){
+ try {const response=await fetch('/api/v1/health');const data=await response.json();
+ document.getElementById('ai-status').textContent=data.assistant_message||'Перезапустите сервер, чтобы подключить агента.';
+ document.getElementById('ask').disabled=!data.assistant_enabled;
+ return data;
+ }catch {document.getElementById('ai-status').textContent='API недоступен';document.getElementById('ask').disabled=true;return null;}
+}
+document.getElementById('clear-history').onclick=()=>{history=[];conversationRun=null;document.getElementById('ai-answer').textContent='История очищена.';document.getElementById('ai-gids').replaceChildren();document.getElementById('ai-tools').textContent='Пока нет запросов.';};
+document.getElementById('ask-form').onsubmit=async event=>{
+ event.preventDefault();const question=document.getElementById('question').value.trim();if(!question)return;
+ const ask=document.getElementById('ask'),clear=document.getElementById('clear-history'),out=document.getElementById('ai-answer');
+ ask.disabled=true;clear.disabled=true;out.textContent='Агент изучает данные…';
+ document.getElementById('ai-gids').replaceChildren();document.getElementById('ai-tools').textContent='Ожидание ответа…';
+ try {
+ const health=await fetch('/api/v1/health').then(r=>r.json());
+ if(conversationRun!==health.run_id)history=[];
+ const response=await fetch('/api/v1/assistant',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question,history:history.slice(-6)}),signal:AbortSignal.timeout(40000)});
+ const data=await response.json();
+ if(!response.ok){out.textContent=data.error?.message||'Ошибка сервиса';document.getElementById('ai-tools').textContent='Запрос завершился ошибкой.';return;}
+ out.textContent=data.answer;conversationRun=data.run_id;
+ history=[...history,{role:'user',content:question},{role:'assistant',content:data.answer.slice(0,4000)}].slice(-6);
+ document.getElementById('ai-tools').textContent=JSON.stringify({run_id:data.run_id,tool_calls:data.tool_calls},null,2);
+ for(const gid of data.gids||[]){const button=document.createElement('button');button.textContent='Узел '+gid;button.onclick=()=>{document.getElementById('gid').value=gid;query('nodes/'+encodeURIComponent(gid));};document.getElementById('ai-gids').append(button);}
+ }catch(error){out.textContent=error.name==='TimeoutError'?'Время ожидания истекло. Попробуйте более конкретный вопрос.':'Сервис недоступен. Проверьте соединение.';}
+ finally {clear.disabled=false;await refreshAI();}
+};
+refreshAI();
 async function query(path,method='GET') {
  const out=document.getElementById('result');
  try {const response=await fetch('/api/v1/'+path,{method}); const data=await response.json();out.textContent='HTTP '+response.status+'\n'+JSON.stringify(data,null,2);return data;}

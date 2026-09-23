@@ -5,6 +5,8 @@ from pathlib import Path
 
 
 def main():
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).parent / '.env', override=False)
     parser = argparse.ArgumentParser(description='Запустить API')
     parser.add_argument('--demo', action='store_true')
     parser.add_argument('--port', type=int, default=int(os.getenv('API_PORT', '8000')))

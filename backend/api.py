@@ -8,13 +8,14 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException
 from .export import ROLES, SCHEMAS
+from .assistant import REQUEST_SCHEMA, answer, readiness
 
 SHORT = 'gid role role_score priority_score priority_rank cluster_id is_seed is_boundary is_isolated depth x y'.split()
 DETAIL = 'rule_id rule_text thresholds values strength alternatives limitations priority_contributions why'.split()
@@ -120,7 +121,9 @@ def create_app(output_dir=None, frontend_dir=None):
     @app.get(PREFIX + '/health')
     def health():
         current = app.state.snapshot
-        return {'status': 'ok', 'run_id': current.data['run']['run_id'] if current else None, 'assistant_enabled': False}
+        enabled, message = readiness()
+        return {'status': 'ok', 'run_id': current.data['run']['run_id'] if current else None,
+                'assistant_enabled': enabled, 'assistant_message': message}
 
     @app.get(PREFIX + '/overview')
     def overview():
@@ -224,9 +227,11 @@ def create_app(output_dir=None, frontend_dir=None):
             raise ApiError('invalid_param', 'Неизвестное имя CSV')
         return FileResponse(s.directory / name, media_type='text/csv; charset=utf-8', filename=name)
 
-    @app.post(PREFIX + '/assistant')
-    def assistant():
-        raise ApiError('assistant_disabled', 'AI-ассистент выключен', 503)
+    @app.post(PREFIX + '/assistant', openapi_extra={
+        'requestBody': {'required': True, 'content': {'application/json': {'schema': REQUEST_SCHEMA}}}
+    })
+    async def assistant(request: Request):
+        return await answer(request, state)
 
     @app.get('/check', response_class=HTMLResponse, include_in_schema=False)
     def check():
