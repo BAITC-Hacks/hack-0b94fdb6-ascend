@@ -12,7 +12,7 @@ def main():
     base = Path(__file__).resolve().parent
     parser.add_argument('--data', type=Path, default=base / 'data')
     parser.add_argument('--output', type=Path)
-    parser.add_argument('--config', type=Path, default=Path('./config/methodology.yaml'))
+    parser.add_argument('--config', type=Path, default=base.parent / 'graph' / 'config' / 'methodology.yaml')
     parser.add_argument('--demo', action='store_true', help='Явно использовать синтетические данные, без Graph Engine')
     args = parser.parse_args()
     output = args.output or base / ('output-demo' if args.demo else 'output')

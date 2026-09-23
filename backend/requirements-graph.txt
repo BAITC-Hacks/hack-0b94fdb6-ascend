@@ -1,0 +1,2 @@
+# Graph team owns these pinned analysis dependencies.
+-r ../graph/requirements.txt

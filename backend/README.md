@@ -1,4 +1,4 @@
-# Backend — первый этап
+# Backend — pipeline и API
 
 Все файлы бэкенда находятся в этой папке. Команды ниже выполняются из корня репозитория в терминале VS Code. Требуется Python 3.11+.
 
@@ -18,20 +18,48 @@ CSV проверяются после записи. Ошибка анализа 
 ## Подключение Graph Engine
 
 ```powershell
-python -m backend.run_pipeline --data ./backend/data --config ./config/methodology.yaml
+python -m pip install -r backend/requirements-graph.txt
+python -m backend.run_pipeline --data ./backend/data --config ./graph/config/methodology.yaml
 ```
 
 Ожидается функция `graph.analyze(data_dir, config_path)` из контракта v2.0. Она возвращает объект с `nodes`, `edges`, `clusters`, `top`, `run_meta`, `quality`. Таблицы могут быть pandas DataFrame. Входы: `nodes.parquet`, `edges.parquet`, `transactions.parquet`; проверки структуры parquet выполняет Graph Engine. Backend дополнительно сверяет покрытие gid с исходным nodes.parquet.
 
-Graph Engine, конфиг и реальные данные в репозитории пока отсутствуют. Реальный прогон не проверен. Деморежим включается только явным `--demo`; ошибки реального анализа не подменяются синтетическим результатом.
+Graph Engine и конфиг уже подключены из `graph/`. Реальных данных в локальном репозитории нет; прогон на данных организаторов не проверен. Деморежим включается только явным `--demo`; ошибки реального анализа не подменяются синтетическим результатом.
 
 Коды выхода: `0` — успех, `2` — отсутствующий вход / DataValidationError, `1` — внутренняя ошибка. Поля `machine.ram_gb = 0` означают, что объём памяти определить не удалось.
 
+## API и проверка в браузере
+
+На этом компьютере окружение уже создано. Команды PowerShell из корня HackAlem:
+
+```powershell
+.\backend\.venv\Scripts\python.exe -m pip install -r backend/requirements.txt
+.\backend\.venv\Scripts\python.exe -m backend.run_pipeline --demo
+.\backend\.venv\Scripts\python.exe -m backend.serve --demo
+```
+
+Открыть http://127.0.0.1:8000/check. Нажимать «Обзор», «5 узлов», «Открыть узел», скачать CSV. Ответ HTTP 200 означает успешный запрос. В поле gid можно ввести `abc`: ожидается HTTP 400 с `invalid_gid`; `1` даёт HTTP 404 с `not_found`. Остановка сервера — Ctrl+C в его терминале. Страница работает без внешних скриптов и CDN.
+
+Демонстрация содержит 24 синтетических изолированных узла, поэтому список связей пустой. Обход связей проверяется отдельно в автоматических тестах на синтетической цепочке. Это ещё не результат анализа реальных переводов.
+
+На другом компьютере сначала установите Python 3.11+ и выполните `python -m venv backend/.venv`, затем команды выше. Встроенное окружение этого компьютера зависит от локального Python и не переносится через Git.
+
+```powershell
+.\backend\.venv\Scripts\python.exe -m unittest discover -s backend/tests -v
+```
+
+Основные запросы: `/api/v1/health`, `/overview`, `/graph`, `/nodes`, `/nodes/{gid}`, `/nodes/{gid}/neighbors`, `/subgraph`, `/top`, `/clusters`, `/clusters/{id}`, `/export/{name}`. Все пути имеют префикс `/api/v1`. Полная схема параметров — `/openapi.json`.
+
+После нового расчёта нажмите «Перечитать результат» (`POST /api/v1/reload`). API и выгрузки используют один загруженный запуск до reload. Ошибка reload сохраняет предыдущий снимок в памяти.
+
+Без `--demo` сервер использует `backend/output` или переменную окружения `OUTPUT_DIR`. Если результата нет, health/overview продолжают работать, запросы к данным возвращают `no_result` (503). `.env.example` — справочник переменных; файл `.env` автоматически не читается. Порт можно изменить: `--port 8001`. Готовая сборка `Frontend/dist` отдаётся на `/`, если она есть; `/check` остаётся доступен. Фронтенд пока не переведён с mock-данных на API. Ассистент выключен.
+
+`requirements.txt` фиксирует проверенное окружение API и тестов; `requirements-graph.txt` подключает зависимости Graph Engine, которыми управляет его разработчик.
+
 ## Следующие этапы
 
-- Зафиксировать и установить зависимости для Graph Engine и FastAPI.
-- Реализовать API `/api/v1` и его тесты согласованности со снимком.
-- Подключить Graph Engine и проверить A01/A10/A14 на реальных parquet.
+- Согласовать с фронтендером переход с mock-данных на API.
+- Проверить A01/A10/A14 на parquet организаторов.
 - Добавить Telegram-бота после готовности основного API.
 
 Важное отличие от исходного плана: по договорённости с владельцем бэкенда точка входа, тесты, окружение и результаты расположены внутри `backend/`; запуск — `python -m backend.run_pipeline`.

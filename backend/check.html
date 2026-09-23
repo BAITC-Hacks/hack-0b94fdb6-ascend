@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Проверка API — Граф денег</title>
+<style>body{font:17px system-ui;max-width:950px;margin:40px auto;padding:0 20px;background:#f3f5f8;color:#172230}button,input{font:inherit;padding:10px;margin:5px;border:1px solid #b7c3d2;border-radius:6px}button{cursor:pointer;background:white}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#fff;padding:20px;border-radius:10px}a{color:#175fbd}</style>
+<h1>Проверка бэкенда</h1><p>Результаты — гипотезы для проверки, а не выводы о виновности.</p>
+<p id="status">Проверяем соединение…</p>
+<div><button data-path="health">Состояние</button><button data-path="overview">Обзор</button><button data-path="graph">Граф</button><button data-path="nodes?limit=5">5 узлов</button><button data-path="top?n=5">Топ-5</button><button data-path="clusters">Кластеры</button><button id="reload">Перечитать результат</button></div>
+<p><input id="gid" placeholder="gid узла" inputmode="numeric"><button id="node">Открыть узел</button></p>
+<p>Скачать: <a href="/api/v1/export/nodes_roles.csv">узлы CSV</a> · <a href="/api/v1/export/clusters.csv">кластеры CSV</a> · <a href="/api/v1/export/top_nodes.csv">топ CSV</a> · <a href="/openapi.json">схема API</a></p>
+<pre id="result">Выберите запрос.</pre>
+<script>
+async function query(path,method='GET') {
+ const out=document.getElementById('result');
+ try {const response=await fetch('/api/v1/'+path,{method}); const data=await response.json();out.textContent='HTTP '+response.status+'\n'+JSON.stringify(data,null,2);return data;}
+ catch(error){out.textContent='API недоступен: '+error.message;}
+}
+document.querySelectorAll('[data-path]').forEach(b=>b.onclick=()=>query(b.dataset.path));
+document.getElementById('reload').onclick=()=>query('reload','POST');
+document.getElementById('node').onclick=()=>query('nodes/'+encodeURIComponent(document.getElementById('gid').value.trim()));
+fetch('/api/v1/overview').then(r=>r.json()).then(data=>{
+ document.getElementById('status').textContent=data._synthetic?'ДЕМО: синтетические данные. API работает.':data.run_id?'Загружен запуск '+data.run_id:'API работает. Результатов пока нет — запустите pipeline.';
+}).catch(()=>document.getElementById('status').textContent='API недоступен');
+fetch('/api/v1/nodes?limit=1').then(r=>r.json()).then(data=>{if(data.items?.length)document.getElementById('gid').value=data.items[0].gid;}).catch(()=>{});
+</script></html>
