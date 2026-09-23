@@ -1,2 +1,78 @@
-# hack-0b94fdb6-ascend
-Hackathon team repository for ascend.
+# Freedom Graph — Ascend
+
+Единое приложение: React-интерфейс → FastAPI → рассчитанный граф и AI-агент.
+Рабочая ветка — `main`. `Frontend/` содержит сайт, `backend/` — API и запуск,
+`graph/` — расчёт признаков и ролей, `ai_agent/` — агента с инструментами графа.
+
+## Запуск в Windows / VS Code
+
+Откройте терминал в корне репозитория. Требуется Python 3.11+.
+
+```powershell
+py -m venv backend/.venv
+.\backend\.venv\Scripts\python.exe -m pip install -r backend/requirements-assistant.txt
+```
+
+Поместите выданные организаторами `nodes.parquet`, `edges.parquet`,
+`transactions.parquet` в `backend/data/`, затем выполните:
+
+```powershell
+.\backend\.venv\Scripts\python.exe -m backend.run_pipeline
+.\backend\.venv\Scripts\python.exe -m backend.serve
+```
+
+Сайт: http://127.0.0.1:8000/ · диагностика: http://127.0.0.1:8000/check · API: http://127.0.0.1:8000/docs.
+Если сервер уже работает, остановите его через Ctrl+C и запустите снова.
+Готовая сборка `Frontend/dist/` включена в репозиторий: для обычного запуска Node.js не нужен.
+
+## AI-агент
+
+Создайте `backend/.env` по `backend/.env.example`. Для чата нужны
+`ASSISTANT_ENABLED=1`, `OPENAI_API_KEY` и `OPENAI_MODEL` — идентификатор модели,
+доступной вашему API-проекту и поддерживающей вызов инструментов. Перезапустите сервер.
+Приложение использует одного агента из `ai_agent/service.py` через бэкенд;
+отдельный сервер агента и второй ключ не нужны. Без ключа граф и карточки работают.
+Ключ остаётся на сервере. Вопрос и факты выбранных инструментов передаются провайдеру.
+
+В сайте доступны полный GID-поиск, фильтры, карточки с обоснованиями,
+кластеры, CSV-выгрузки и чат «Спросить AI». Например: «Выбери 10 приоритетных узлов».
+GID — строковый идентификатор узла; не преобразуйте его в JavaScript Number.
+Оценки и роли — гипотезы для проверки, а не вероятность нарушения.
+Карта служит подложкой схемы связей: географических координат клиентов нет.
+
+## Данные на другом компьютере
+
+Parquet, результаты и `.env` не входят в Git. Для пересчёта нужны исходные parquet.
+Для показа уже рассчитанного анализа достаточно передать папку `backend/output/`
+целиком, включая `LATEST` и соответствующий каталог `runs/`, и запустить сервер.
+Все посетители сайта получают данные с сервера; им parquet не нужны.
+Без данных можно явно выбрать синтетический режим:
+
+```powershell
+.\backend\.venv\Scripts\python.exe -m backend.run_pipeline --demo
+.\backend\.venv\Scripts\python.exe -m backend.serve --demo
+```
+
+## Разработка интерфейса
+
+```powershell
+cd Frontend
+npm ci
+npm run dev
+```
+
+Vite проксирует `/api` на `127.0.0.1:8000`; backend должен быть запущен отдельно.
+После правок выполните `npm run build` и включите обновлённую `Frontend/dist/` в коммит.
+При размещении на другом API-адресе задайте `VITE_API_BASE_URL` перед сборкой
+и настройте CORS на сервере (см. `backend/README.md`). Секреты в `VITE_*` запрещены:
+эти значения публичны в браузере.
+
+## Проверки
+
+```powershell
+.\backend\.venv\Scripts\python.exe -m unittest discover -s backend/tests -v
+```
+
+Проверяются API, обработка ошибок, согласованность CSV, агент и детерминированность анализа.
+Приёмочный тест реальных данных использует локальную `backend/data/`.
+Подробные контракты и методология: `PROJECT.md`, `CONTRACT_AI.md`, `backend/README.md`, `graph/`.

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import cytoscape, { type Core } from 'cytoscape'
 import { Maximize2, Minus, Plus, Pause, Play, Activity, Network, Layers3 } from 'lucide-react'
 import type { GraphEdge, GraphNode } from '../types/graph'
@@ -20,6 +20,7 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
   const mapScene = useRef<SVGGElement>(null)
   const flowCanvas = useRef<HTMLCanvasElement>(null)
   const graph = useRef<Core | null>(null)
+  const [neighborhood, setNeighborhood] = useState(false)
   const handler = useRef(onSelect)
   handler.current = onSelect
 
@@ -27,17 +28,22 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
     if (!container.current) return
     const cy = cytoscape({
       container: container.current, elements: [], layout: { name: 'preset' },
-      minZoom: .25, maxZoom: 3, pixelRatio: Math.min(window.devicePixelRatio, 2),
+      minZoom: .02, maxZoom: 3, pixelRatio: Math.min(window.devicePixelRatio, 2),
       style: [
         { selector: 'node', style: {
           'background-color': '#102019', 'background-opacity': 0, 'background-image': 'data(portrait)', 'background-fit': 'contain',
           shape: 'round-rectangle',
-          'border-width': 0, width: 38, height: 38, label: 'data(label)', color: '#c4d6c9',
-          'font-size': 12, 'text-valign': 'bottom', 'text-margin-y': 8,
+          'border-width': 0, width: 38, height: 38, label: '', color: '#c4d6c9',
+          'font-size': 12, 'min-zoomed-font-size': 9, 'text-valign': 'bottom', 'text-margin-y': 8,
           'text-background-color': '#0a1710', 'text-background-opacity': .9, 'text-background-padding': '4px',
         } },
         { selector: 'node:selected', style: { width: 48, height: 48, 'border-color': '#d8edbb', 'border-width': 1.5,
           'font-weight': 600, color: '#fff', 'overlay-color': 'data(color)', 'overlay-opacity': .09, 'overlay-padding': 12 } },
+        { selector: 'node:selected, node.hovered', style: { label: 'data(label)' } },
+        { selector: '.outside-neighborhood', style: { display: 'none' } },
+        { selector: 'node.seed', style: { 'border-width': 3, 'border-color': '#ecedb8' } },
+        { selector: 'node.boundary', style: { 'border-width': 2, 'border-style': 'dashed', 'border-color': '#afbab0' } },
+        { selector: 'node.isolated', style: { 'background-opacity': 0, 'border-width': 1, 'border-color': '#afbab0' } },
         { selector: 'edge', style: { width: 1.2, 'line-color': 'data(color)', 'target-arrow-color': 'data(color)',
           'target-arrow-shape': 'triangle', 'arrow-scale': .75, 'curve-style': 'unbundled-bezier',
           'control-point-distances': 35, 'control-point-weights': .5, opacity: .3 } },
@@ -48,6 +54,8 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
     })
     graph.current = cy
     cy.on('tap', 'node', event => handler.current(event.target.id()))
+    cy.on('mouseover', 'node', event => event.target.addClass('hovered'))
+    cy.on('mouseout', 'node', event => event.target.removeClass('hovered'))
     cy.on('mouseover', 'edge', event => event.target.addClass('hovered'))
     cy.on('mouseout', 'edge', event => event.target.removeClass('hovered'))
     const syncMap = () => {
@@ -69,7 +77,7 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
     cy.batch(() => {
       cy.elements().remove()
       cy.add([
-        ...nodes.map(node => ({ data: { id: node.id, label: node.gid, color: color(node), portrait: getNodeArtwork(node, colorMode) }, position: { x: node.x * 8, y: node.y * 6 } })),
+        ...nodes.map(node => ({ data: { id: node.id, label: node.gid, color: color(node), portrait: getNodeArtwork(node, colorMode) }, classes: [node.isSeed?'seed':'',node.isBoundary?'boundary':'',node.isIsolated?'isolated':''].join(' '), position: { x: node.x, y: node.y } })),
         ...edges.filter(edge => byId.has(edge.source) && byId.has(edge.target)).map(edge => ({ data: { ...edge, color: color(byId.get(edge.source)!) } })),
       ])
     })
@@ -82,8 +90,19 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
     cy.nodes().unselect(); cy.edges().removeClass('focused')
     const node = cy.getElementById(selectedId)
     node.select(); node.connectedEdges().addClass('focused')
-    if (node.length) cy.stop().animate({ center: { eles: node } }, { duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 350 })
   }, [selectedId, nodes, edges, colorMode])
+
+  useEffect(() => {
+    const cy = graph.current
+    if (!cy) return
+    cy.elements().removeClass('outside-neighborhood')
+    const node = cy.getElementById(selectedId)
+    if (neighborhood && node.length) {
+      cy.elements().addClass('outside-neighborhood')
+      node.closedNeighborhood().removeClass('outside-neighborhood')
+    }
+    cy.fit(cy.elements(':visible'), 28)
+  }, [neighborhood, selectedId, nodes, edges, colorMode])
 
   useEffect(() => {
     if (!graph.current || !flowCanvas.current || !container.current) return
@@ -92,7 +111,7 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
 
   const zoomBy = (step: number) => {
     const cy = graph.current
-    if (cy) cy.zoom({ level: Math.max(.25, Math.min(3, cy.zoom() + step)), renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } })
+    if (cy) cy.zoom({ level: Math.max(.02, Math.min(3, cy.zoom() * (step > 0 ? 1.5 : 1/1.5))), renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } })
   }
 
   return <div className="design-network">
@@ -102,14 +121,16 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
         return <button key={mode} aria-pressed={colorMode === mode} onClick={() => onColorMode(mode)}><Icon size={12}/>{[t.signals, t.roles, t.clusters][index]}</button>
       })}</div>
       <div className="network-controls">
+        <button className="neighborhood-button" aria-label="Связи выбранного узла" aria-pressed={neighborhood} onClick={() => setNeighborhood(v=>!v)}>1 hop</button>
         <button aria-label={motion ? t.pause : t.play} aria-pressed={motion} onClick={onMotion}>{motion ? <Pause size={14}/> : <Play size={14}/>}</button>
         <button aria-label={t.zoomOut} onClick={() => zoomBy(-.2)}><Minus size={15}/></button>
         <button aria-label={t.zoomIn} onClick={() => zoomBy(.2)}><Plus size={15}/></button>
-        <button aria-label={t.fit} onClick={() => graph.current?.fit(undefined, 28)}><Maximize2 size={15}/></button>
+        <button aria-label={t.fit} onClick={() => { setNeighborhood(false); graph.current?.fit(undefined, 28) }}><Maximize2 size={15}/></button>
       </div>
     </div>
     <div className="network-viewport">
       <KazakhstanMap sceneRef={mapScene}/>
+      <span className="map-caption">Схема связей, не география клиентов</span>
       <div className="map-aura" aria-hidden="true"/>
       <div className="cy-container" ref={container}/>
       <canvas ref={flowCanvas} className="flow-canvas" aria-hidden="true"/>
@@ -119,6 +140,6 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
       {colorMode === 'role' ? roleOrder.map((role, index) => <span key={role}><img src={roleArtwork[role]} alt="" width="24" height="24"/>{t.role[index]}</span>)
         : [...new Set(nodes.map(node => node.clusterId))].sort((a, b) => a - b).map(id => <span key={id}><img src={getClusterArtwork(id)} alt="" width="24" height="24"/>{t.cluster} #{id}</span>)}
     </div>}
-    <div className="network-bottom"><span><i/>{t.direction}</span><span>{nodes.length} {t.nodes.toLowerCase()} · {edges.length} {t.edges.toLowerCase()}</span></div>
+    <div className="network-bottom"><span><i/>{t.direction}</span><span>{neighborhood?'Связи выбранного узла в текущем фильтре':`${nodes.length} ${t.nodes.toLowerCase()} · ${edges.length} ${t.edges.toLowerCase()}`}</span></div>
   </div>
 }

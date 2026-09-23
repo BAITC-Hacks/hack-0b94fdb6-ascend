@@ -24,6 +24,9 @@ export interface GraphNode {
   x: number
   y: number
   highlighted?: boolean
+  isSeed?: boolean
+  isBoundary?: boolean
+  isIsolated?: boolean
 }
 
 export interface GraphEdge {
