@@ -51,6 +51,10 @@ Guard проверяет точные GID, запрещённые формули
 
 ## Проверки
 
+Для быстрой ручной проверки выберите GID в текущем графе и спросите: «Объясни роль узла #GID: вход, выход и основание», заменив `GID` на выбранный идентификатор. Сверьте суммы и основание ответа с карточкой того же узла и снимка.
+
+Если ответ помечен `mode=fallback`, это локальный разбор фактов, а не ответ модели OpenAI. При показе результата сохраняйте эту отметку и предупреждения об ограничениях данных.
+
 ```bat
 .\.venv\Scripts\python.exe -m pytest graph/tests ai_agent/tests backend/tests -q
 .\.venv\Scripts\python.exe -m ai_agent.evaluate --snapshot check-result/snapshot.json --output ai_agent/docs/assistant_eval_offline.md
