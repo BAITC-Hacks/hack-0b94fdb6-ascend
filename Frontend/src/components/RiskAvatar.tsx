@@ -1,12 +1,12 @@
 import type { CSSProperties } from 'react'
+import { UserRound } from 'lucide-react'
 import { riskColors, riskIndex } from '../i18n'
 import { priorityArtwork } from '../data/visualAssets'
 
-/** Supplied priority artwork; nearby localized text provides the accessible label. */
+/** A compact priority mark; the adjacent text carries its meaning. */
 export function RiskAvatar({ score, large = false }: { score: number; large?: boolean }) {
-  const tier = riskIndex(score)
-  return <span className={`risk-avatar risk-avatar--artwork ${large ? 'risk-avatar--large' : ''}`} style={{ '--risk': riskColors[tier] } as CSSProperties} aria-hidden="true">
-    <img src={priorityArtwork[tier]} className="priority-artwork" width="90" height="90" alt="" draggable={false}/>
+  return <span className={`risk-avatar risk-avatar--minimal ${large ? 'risk-avatar--large' : ''}`} style={{ '--risk': riskColors[riskIndex(score)] } as CSSProperties} aria-hidden="true">
+    {large && <UserRound size={22} strokeWidth={1.4}/>}
   </span>
 }
 
