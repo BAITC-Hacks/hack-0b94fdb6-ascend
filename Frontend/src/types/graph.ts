@@ -35,4 +35,8 @@ export interface GraphEdge {
   target: string
   amount: string
   label?: string
+  sumKzt?: number
+  transactions?: number
+  firstDate?: string | null
+  lastDate?: string | null
 }

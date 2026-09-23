@@ -32,7 +32,7 @@ export function useAnalysis() {
         if (info.run_id !== graph.run_id || after.run_id !== graph.run_id) throw new Error('Результат изменился во время загрузки. Обновите данные.')
         if (controller.signal.aborted) return
         setNodes(graph.nodes.sort((a, b) => a.priority_rank - b.priority_rank).map(n => adaptNode(n)))
-        setEdges(graph.edges.map(e => ({ id: `${e.src}:${e.dst}`, source: e.src, target: e.dst, amount: money(e.sum_kzt) })))
+        setEdges(graph.edges.map(e => ({ id: `${e.src}:${e.dst}`, source: e.src, target: e.dst, amount: money(e.sum_kzt), sumKzt: e.sum_kzt, transactions: e.n_tx, firstDate: e.first_date, lastDate: e.last_date })))
         setOverview(after); setClusters(allClusters)
       } catch (e) { if (!controller.signal.aborted) setError(e instanceof Error ? e.message : 'API недоступен') }
       finally { if (!controller.signal.aborted) setLoading(false) }

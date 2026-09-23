@@ -11,7 +11,7 @@ export type NodeShort = { gid: string; role: Role; role_score: number; priority_
 export type NodeDetail = NodeShort & { in_deg: number; out_deg: number; in_kzt: number; out_kzt: number; evidence: string }
 export type Cluster = { cluster_id: number; n_nodes: number; n_seed: number; sum_kzt_internal: number; top_gids: string[]; hypothesis: string }
 export type Overview = { run_id: string | null; _synthetic?: boolean; counts?: { nodes: number; edges: number; clusters: number }; period?: { from: string; to: string }; last_attempt?: { status: string; error?: string } }
-export type GraphResponse = { run_id: string; nodes: NodeShort[]; edges: { src: string; dst: string; sum_kzt: number }[] }
+export type GraphResponse = { run_id: string; nodes: NodeShort[]; edges: { src: string; dst: string; sum_kzt: number; n_tx: number; first_date?: string | null; last_date?: string | null }[] }
 export type NodeCard = { node: NodeDetail; evidence_detail: { rule_text: string; limitations: string[]; values: Record<string, unknown> } }
 export const money = (value: number) => new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(value) + ' ₸'
 export function adaptNode(n: NodeShort, detail?: NodeDetail): GraphNode {

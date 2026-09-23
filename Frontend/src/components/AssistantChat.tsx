@@ -3,7 +3,7 @@ import { api } from '../api'
 
 type Message = { role: 'user' | 'assistant'; content: string }
 type Reply = { answer: string; gids: string[]; tool_calls: { name: string; args: unknown }[]; run_id: string; answer_source?: string }
-export function AssistantChat({ runId, selectedGid, onSelect }: { runId: string; selectedGid: string; onSelect: (gid: string) => void }) {
+export function AssistantChat({ runId, selectedGid, onSelect, suggestedPrompt }: { suggestedPrompt?: {text:string}|null; runId: string; selectedGid: string; onSelect: (gid: string) => void }) {
   const [open, setOpen] = useState(false)
   const [question, setQuestion] = useState('')
   const [history, setHistory] = useState<Message[]>([])
@@ -12,6 +12,7 @@ export function AssistantChat({ runId, selectedGid, onSelect }: { runId: string;
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState('')
   const active = useRef<AbortController | null>(null)
+  useEffect(()=>{if(suggestedPrompt){setQuestion(suggestedPrompt.text);setOpen(true)}},[suggestedPrompt])
   useEffect(() => { active.current?.abort(); active.current=null; setHistory([]); setReply(null); setError(''); setBusy(false); return () => { active.current?.abort(); active.current=null } }, [runId])
   useEffect(() => { if (open) api<{ assistant_message: string }>('/health').then(h => setStatus(h.assistant_message)).catch(() => setStatus('API недоступен')) }, [open])
   async function send() {
