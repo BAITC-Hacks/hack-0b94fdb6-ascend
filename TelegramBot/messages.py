@@ -9,11 +9,13 @@ WELCOME = ('🟢 <b>FREEDOM GRAPH</b>\n'
            '🔎 Новая связь — повод для проверки, а не вывод о нарушении.')
 
 
-def menu(dashboard='', miniapp_url=''):
+def menu(dashboard='', miniapp_url='', authenticated=True):
     rows = [[{'text': '📡 Статус', 'callback_data': 'status'}, {'text': '📋 Последние', 'callback_data': 'alerts'}],
             [{'text': '⏸ Пауза', 'callback_data': 'pause'}, {'text': '▶ Возобновить', 'callback_data': 'resume'}]]
+    if not authenticated:
+        rows = []
     if dashboard:
-        rows.append([{'text': '↗ Открыть MoneyGraph', 'url': dashboard}])
+        rows.append([{'text': '↗ Открыть сайт Freedom Graph', 'url': dashboard}])
     if miniapp_url:
         rows.insert(0, [{'text': 'Открыть Freedom Graph · Mini App', 'web_app': {'url': miniapp_url}}])
     return {'inline_keyboard': rows}
@@ -50,5 +52,5 @@ def alert(event, details=False):
 def alert_buttons(event, dashboard=''):
     rows = [[{'text': '✓ Принято к проверке', 'callback_data': 'ack:' + event['id']}]]
     if dashboard:
-        rows.append([{'text': '↗ Открыть MoneyGraph', 'url': dashboard}])
+        rows.append([{'text': '↗ Открыть сайт Freedom Graph', 'url': dashboard}])
     return {'inline_keyboard': rows}

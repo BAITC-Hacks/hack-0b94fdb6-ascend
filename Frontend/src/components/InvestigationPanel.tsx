@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { X, ArrowRight, BookmarkPlus, Download, Route, FileText } from 'lucide-react'
 import type { GraphEdge, GraphNode } from '../types/graph'
-import { money, type NodeCard } from '../api'
+import { API, money, type NodeCard } from '../api'
 import { checkChronology, edgeEvidence, findDirectedPath, reportMarkdown, TRACE_LIMIT, type Evidence, type Trace } from '../investigation'
 
 interface Props {
@@ -17,6 +17,8 @@ export function InvestigationPanel({ open, onClose, runId, period, nodes, edges,
   const [direction, setDirection] = useState('both')
   const [error, setError] = useState(''), [notice, setNotice] = useState('')
   const [items, setItems] = useState<Evidence[]>([])
+  const [downloading, setDownloading] = useState(false)
+  const [downloadError, setDownloadError] = useState('')
   const panel = useRef<HTMLElement>(null)
   const [edgeLimit, setEdgeLimit] = useState(20)
   const edge = edges.find(e => e.id === selectedEdgeId)
@@ -50,6 +52,28 @@ export function InvestigationPanel({ open, onClose, runId, period, nodes, edges,
     const url = URL.createObjectURL(new Blob([reportMarkdown(runId, period, items)], { type:'text/markdown;charset=utf-8' }))
     const link = document.createElement('a'); link.href = url; link.download = `freedom-case-${runId}.md`
     link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+  async function downloadPdf() {
+    if (downloading || !items.length) return
+    setDownloading(true); setDownloadError('')
+    try {
+      const response = await fetch(API + '/export/report.pdf', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({run_id:runId, keys:items.map(item=>item.key)}),
+        signal:AbortSignal.timeout(30000),
+      })
+      if (!response.ok) {
+        const body = await response.json().catch(()=>null)
+        throw new Error(response.status===404 ? 'PDF-экспорт пока недоступен на сервере.' : body?.error?.message || 'Не удалось сформировать PDF.')
+      }
+      if (!response.headers.get('content-type')?.includes('application/pdf')) throw new Error('Сервер не вернул PDF. Попробуйте ещё раз.')
+      const url = URL.createObjectURL(await response.blob())
+      const link = document.createElement('a'); link.href=url; link.download=`freedom-case-${runId}.pdf`
+      link.click(); setTimeout(()=>URL.revokeObjectURL(url),1000)
+      setNotice('PDF сформирован. Файл передан браузеру для скачивания.')
+    } catch (e) {
+      setDownloadError(e instanceof Error && e.name==='TimeoutError' ? 'Сервер не успел сформировать PDF. Попробуйте ещё раз.' : e instanceof Error ? e.message : 'Не удалось скачать PDF.')
+    } finally { setDownloading(false) }
   }
   if (!open) return null
   return <aside className="investigation-panel" aria-label="Расследование" ref={panel} tabIndex={-1} onKeyDown={e=>{if(e.key==='Escape')onClose()}}>
@@ -87,7 +111,9 @@ export function InvestigationPanel({ open, onClose, runId, period, nodes, edges,
       <button className="case-more" disabled={!card} onClick={()=>{if(card)add({key:'node:'+card.node.gid,title:'Узел '+card.node.gid,facts:[`Роль: ${card.node.role}; приоритет: ${card.node.priority_score}`,`Вход: ${money(card.node.in_kzt)}; выход: ${money(card.node.out_kzt)}`,`Входящих связей: ${card.node.in_deg}; исходящих: ${card.node.out_deg}`,`Обоснование: ${card.node.evidence}`,`Правило: ${card.evidence_detail.rule_text}`,...(card.evidence_detail.limitations||[])]})}}><BookmarkPlus size={14}/> Добавить выбранный узел</button>
       {!items.length&&<p className="case-empty">Начните с узла, связи или найденной цепочки. В отчёт попадут только добавленные факты.</p>}
       <ol className="evidence-list">{items.map(item=><li key={item.key}><strong>{item.title}</strong><p>{item.facts[0]}</p><button onClick={()=>setItems(items.filter(i=>i.key!==item.key))}>Убрать из досье</button></li>)}</ol>
-      <button className="case-primary case-more" disabled={!items.length} onClick={download}><Download size={15}/> Скачать отчёт .md ({items.length})</button>
+      {downloadError&&<p className="integration-error" role="alert">{downloadError}</p>}
+      <button className="case-primary case-more" disabled={!items.length || downloading} aria-busy={downloading} onClick={downloadPdf}><Download size={15}/> {downloading?'Готовим PDF…':`Скачать PDF (${items.length})`}</button>
+      <button className="case-link case-more" disabled={!items.length} onClick={download}>Скачать текст .md</button>
     </>}
     <footer><FileText size={12}/><span>Снимок {runId}<br/>{period} · гипотезы, не обвинения</span></footer>
   </aside>

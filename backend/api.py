@@ -11,11 +11,12 @@ from typing import Literal
 from fastapi import FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException
 from .export import ROLES, SCHEMAS
 from .assistant import REQUEST_SCHEMA, answer, readiness
+from .report_pdf import ReportRequest, collect_evidence, render_pdf
 
 SHORT = 'gid role role_score priority_score priority_rank cluster_id is_seed is_boundary is_isolated depth x y'.split()
 DETAIL = 'rule_id rule_text thresholds values strength alternatives limitations priority_contributions why'.split()
@@ -226,6 +227,20 @@ def create_app(output_dir=None, frontend_dir=None):
         if name not in SCHEMAS:
             raise ApiError('invalid_param', 'Неизвестное имя CSV')
         return FileResponse(s.directory / name, media_type='text/csv; charset=utf-8', filename=name)
+
+    @app.post(PREFIX + '/export/report.pdf')
+    def report_pdf(selection: ReportRequest):
+        s = state()
+        if selection.run_id != s.data['run']['run_id']:
+            raise ApiError('stale_snapshot', 'Снимок изменился. Обновите данные и соберите досье заново.', 409)
+        try:
+            evidence = collect_evidence(s.data, selection.keys)
+        except ValueError as exc:
+            raise ApiError('invalid_param', str(exc)) from exc
+        return Response(render_pdf(s.data, evidence), media_type='application/pdf', headers={
+            'Content-Disposition': f'attachment; filename="freedom-case-{selection.run_id}.pdf"',
+            'Cache-Control': 'no-store',
+        })
 
     @app.post(PREFIX + '/assistant', openapi_extra={
         'requestBody': {'required': True, 'content': {'application/json': {'schema': REQUEST_SCHEMA}}}

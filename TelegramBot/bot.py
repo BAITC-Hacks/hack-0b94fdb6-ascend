@@ -123,7 +123,7 @@ class Bot:
             self.rate_limits.clear()
         self.rate_limits[uid] = now
         if command == 'start':
-            self.telegram.welcome(uid, WELCOME, menu(self.config.dashboard, self.config.miniapp_url) if self.authorized(uid) else {'inline_keyboard': []})
+            self.telegram.welcome(uid, WELCOME, menu(self.config.dashboard, self.config.miniapp_url, authenticated=self.authorized(uid)))
             return
         if command == 'activate' and not callback:
             code = text.partition(' ')[2].strip()

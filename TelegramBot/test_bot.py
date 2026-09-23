@@ -1,4 +1,5 @@
 import hashlib
+import os
 import tempfile
 import unittest
 import ssl
@@ -40,6 +41,18 @@ class BotTests(unittest.TestCase):
         self.command(101, '/start')
         self.assertIn('/activate', self.telegram.messages[-1][1])
         self.assertFalse(self.bot.authorized(101))
+
+    def test_public_navigation_does_not_expose_monitoring_actions(self):
+        self.bot.config = replace(self.config, dashboard='https://example.com', miniapp_url='https://mini.example.com')
+        self.command(101, '/start')
+        buttons = [b for row in self.telegram.messages[-1][2]['inline_keyboard'] for b in row]
+        self.assertTrue(any(b.get('url') == 'https://example.com' for b in buttons))
+        self.assertTrue(any(b.get('web_app', {}).get('url') == 'https://mini.example.com' for b in buttons))
+        self.assertFalse(any('callback_data' in b for b in buttons))
+        self.assertFalse(self.bot.authorized(101))
+
+    def test_no_site_link_until_published(self):
+        self.assertEqual(menu(authenticated=False), {'inline_keyboard': []})
 
     def test_identity_and_personal_automatic_delivery(self):
         self.activate(101); self.activate(202)
@@ -180,7 +193,8 @@ class BotTests(unittest.TestCase):
                 self.assertTrue(bot.authorized(101))
                 self.telegram.messages.clear(); bot.poll_graph(); bot.deliver()
                 self.assertEqual(len(self.telegram.messages), 1)
-                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+                if os.name != 'nt':  # Windows uses ACLs, not POSIX permission bits.
+                    self.assertEqual(path.stat().st_mode & 0o777, 0o600)
             finally:
                 store.close()
 

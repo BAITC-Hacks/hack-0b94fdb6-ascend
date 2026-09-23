@@ -163,3 +163,10 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   .scale-heading small { display:none; }
   .assistant-panel { max-height:70vh; }
 }
+
+/* Public navigation, with no tokens or client identifiers in the link. */
+.telegram-link { display:inline-flex; align-items:center; gap:8px; flex-shrink:0; padding:9px 12px; border:1px solid #494366; border-radius:8px; background:#211d35; color:#dcd4ff; text-decoration:none; font-size:11px; white-space:nowrap; }
+.telegram-link:hover { background:#302747; border-color:#8e7bbf; }
+.telegram-link:focus-visible { outline:2px solid #b5a3ef; outline-offset:3px; }
+@media(max-width:1100px) and (min-width:761px) { .telegram-link span { display:none; } }
+@media(max-width:760px) { .telegram-link { padding:8px; font-size:10px; } }
