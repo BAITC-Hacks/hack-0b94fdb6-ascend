@@ -1,4 +1,10 @@
 /* Restrained motion layer: no layout-affecting animation or flashing. */
+.freedom-mark--artwork { position: relative; width: 44px; height: 44px; flex-shrink: 0; background: transparent; border-radius: 12px; overflow: hidden; }
+.freedom-mark--artwork img { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: block; width: 58px; height: 58px; max-width: none; object-fit: contain; }
+.risk-avatar--artwork { border-radius: 9px; overflow: hidden; box-shadow: 0 0 0 1px color-mix(in srgb, var(--risk) 16%, transparent); }
+.priority-artwork { display: block; width: 100%; height: 100%; object-fit: cover; }
+.risk-avatar--artwork.risk-avatar--large { border-radius: 19px; box-shadow: 0 0 0 1px color-mix(in srgb, var(--risk) 24%, transparent), 0 8px 24px #0003; }
+.scale-levels .tier-artwork { display: block; width: 38px; height: 38px; object-fit: cover; border-radius: 9px; }
 .risk-avatar { width: 38px; height: 38px; }
 .risk-avatar .avatar-portrait { filter: drop-shadow(0 2px 5px #0005); }
 .avatar-arc { stroke-width: 2; stroke-linecap: round; stroke-dasharray: 75 16 35 88; transform-origin: 40px 40px; }

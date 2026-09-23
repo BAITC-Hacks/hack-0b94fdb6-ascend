@@ -1,3 +1,5 @@
+import { signalPalette } from './data/palette'
+
 export type Language = 'ru' | 'kk' | 'en'
 const copy = {
   ru: {
@@ -22,6 +24,6 @@ const copy = {
 export const translations = copy
 export type Copy = typeof copy.ru
 export const roleOrder = ['consolidator', 'transit', 'distributor', 'terminal', 'coordinator', 'peripheral'] as const
-export const riskColors = ['#ff6b74', '#f7a34b', '#e5cf64', '#47c79b', '#60c9df']
+export const riskColors = [signalPalette.red, signalPalette.orange, signalPalette.yellow, signalPalette.green, signalPalette.blue]
 // Visual tiers for the synthetic preview only; these do not alter analytical scores.
 export const riskIndex = (score: number) => score >= .9 ? 0 : score >= .75 ? 1 : score >= .6 ? 2 : score >= .5 ? 3 : 4

@@ -26,6 +26,14 @@
 - Removed the decorative-map caption in all languages as requested.
 - Scope remains exclusively `Frontend/`; backend and AI implementation is unchanged.
 
-## Next checkpoint
+## Checkpoint 4 — supplied brand and priority artwork
+
+- Added the supplied green logo to the top-left brand area.
+- Applied all five supplied portraits to the client list, selected client, priority scale and priority graph mode.
+- Original files are unchanged; Vite bundles all six assets locally. No extra software or dependencies.
+- All five priority colors and supplied portraits, including cyan, are preserved. Role and cluster modes now share the same palette, removing additional purple, gray and beige category colors. Analytical tiers and scores are unchanged.
+- Verified image loading, priority color mapping, bounded laptop layout, production build and existing motion tests.
+
+## Next integration checkpoint
 
 - Align frontend data adapters and copy only the final backend response contract after `Project.md` and team API decisions are available.

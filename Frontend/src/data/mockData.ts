@@ -1,3 +1,4 @@
+import { signalPalette } from './palette'
 import type { GraphEdge, GraphNode, SignalMeta } from '../types/graph'
 
 export const mockNodes: GraphNode[] = [
@@ -18,17 +19,17 @@ export const mockEdges: GraphEdge[] = [
 ]
 
 export const roleMeta = {
-  consolidator: { label: 'Консолидатор', color: '#a78bfa' }, transit: { label: 'Транзит', color: '#60a5fa' }, distributor: { label: 'Распределитель', color: '#fb923c' }, terminal: { label: 'Конечный получатель', color: '#4ade80' }, coordinator: { label: 'Координатор', color: '#f87171' }, peripheral: { label: 'Периферийный', color: '#8b92a1' },
+  consolidator: { label: 'Консолидатор', color: signalPalette.yellow }, transit: { label: 'Транзит', color: signalPalette.blue }, distributor: { label: 'Распределитель', color: signalPalette.orange }, terminal: { label: 'Конечный получатель', color: signalPalette.green }, coordinator: { label: 'Координатор', color: signalPalette.red }, peripheral: { label: 'Периферийный', color: signalPalette.green },
 } as const
 
 export const clusterMeta: Record<number, { color: string; nNodes: number; nSeed: number; internalTurnover: string; keyGids: string[]; hypothesis: string }> = {
-  1: { color: '#71a79a', nNodes: 624, nSeed: 22, internalTurnover: '₸98.2M', keyGids: ['703118', '551920'], hypothesis: 'Периферийный фрагмент с ограниченным числом наблюдаемых связей.' },
-  2: { color: '#d6ad70', nNodes: 713, nSeed: 28, internalTurnover: '₸121.4M', keyGids: ['882104', '120934'], hypothesis: 'Фрагмент со связующими узлами между несколькими путями переводов.' },
-  3: { color: '#66c7b0', nNodes: 911, nSeed: 31, internalTurnover: '₸146.3M', keyGids: ['192831', '203472', '104882'], hypothesis: 'Плотный фрагмент с признаками консолидации и распределения наблюдаемого потока.' },
+  1: { color: signalPalette.green, nNodes: 624, nSeed: 22, internalTurnover: '₸98.2M', keyGids: ['703118', '551920'], hypothesis: 'Периферийный фрагмент с ограниченным числом наблюдаемых связей.' },
+  2: { color: signalPalette.yellow, nNodes: 713, nSeed: 28, internalTurnover: '₸121.4M', keyGids: ['882104', '120934'], hypothesis: 'Фрагмент со связующими узлами между несколькими путями переводов.' },
+  3: { color: signalPalette.blue, nNodes: 911, nSeed: 31, internalTurnover: '₸146.3M', keyGids: ['192831', '203472', '104882'], hypothesis: 'Плотный фрагмент с признаками консолидации и распределения наблюдаемого потока.' },
 }
 
 export function getClusterColor(clusterId: number) {
-  return clusterMeta[clusterId]?.color ?? '#71808c'
+  return clusterMeta[clusterId]?.color ?? signalPalette.blue
 }
 
 export function getSignalMeta(priorityScore: number): SignalMeta {

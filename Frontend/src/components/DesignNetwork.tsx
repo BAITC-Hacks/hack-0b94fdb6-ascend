@@ -30,7 +30,8 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
       minZoom: .25, maxZoom: 3, pixelRatio: Math.min(window.devicePixelRatio, 2),
       style: [
         { selector: 'node', style: {
-          'background-color': '#102019', 'background-image': 'data(portrait)', 'background-fit': 'cover',
+          'background-color': '#102019', 'background-image': 'data(portrait)', 'background-fit': 'contain',
+          shape: 'round-rectangle',
           'border-width': 0, width: 38, height: 38, label: 'data(label)', color: '#c4d6c9',
           'font-size': 12, 'text-valign': 'bottom', 'text-margin-y': 8,
           'text-background-color': '#0a1710', 'text-background-opacity': .9, 'text-background-padding': '4px',
@@ -68,7 +69,7 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
     cy.batch(() => {
       cy.elements().remove()
       cy.add([
-        ...nodes.map(node => ({ data: { id: node.id, label: node.gid, color: color(node), portrait: riskNodeImage(node.priorityScore, color(node)) }, position: { x: node.x * 8, y: node.y * 6 } })),
+        ...nodes.map(node => ({ data: { id: node.id, label: node.gid, color: color(node), portrait: riskNodeImage(node.priorityScore, color(node), colorMode === 'priority') }, position: { x: node.x * 8, y: node.y * 6 } })),
         ...edges.filter(edge => byId.has(edge.source) && byId.has(edge.target)).map(edge => ({ data: { ...edge, color: color(byId.get(edge.source)!) } })),
       ])
     })
