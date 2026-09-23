@@ -9,11 +9,13 @@ WELCOME = ('🟢 <b>FREEDOM GRAPH</b>\n'
            '🔎 Новая связь — повод для проверки, а не вывод о нарушении.')
 
 
-def menu(dashboard=''):
+def menu(dashboard='', miniapp_url=''):
     rows = [[{'text': '📡 Статус', 'callback_data': 'status'}, {'text': '📋 Последние', 'callback_data': 'alerts'}],
             [{'text': '⏸ Пауза', 'callback_data': 'pause'}, {'text': '▶ Возобновить', 'callback_data': 'resume'}]]
     if dashboard:
         rows.append([{'text': '↗ Открыть MoneyGraph', 'url': dashboard}])
+    if miniapp_url:
+        rows.insert(0, [{'text': 'Открыть Freedom Graph · Mini App', 'web_app': {'url': miniapp_url}}])
     return {'inline_keyboard': rows}
 
 

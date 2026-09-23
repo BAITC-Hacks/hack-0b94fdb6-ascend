@@ -40,6 +40,7 @@ class Config:
     min_priority: float = 0
     allow_real: bool = False
     include_details: bool = False
+    miniapp_url: str = ''
 
     @classmethod
     def from_env(cls):
@@ -55,6 +56,8 @@ class Config:
         if not 15 <= interval <= 3600 or not 0 <= priority <= 1:
             raise ValueError('POLL_SECONDS: 15–3600; MIN_PRIORITY: 0–1.')
         dashboard = os.getenv('DASHBOARD_URL', '')
+        miniapp = os.getenv('MINIAPP_URL', '')
         return cls(token, access_hash, safe_url(os.getenv('BACKEND_URL', 'http://127.0.0.1:8000')),
                    os.getenv('BACKEND_API_TOKEN', ''), safe_url(dashboard, public=True) if dashboard else '',
-                   interval, priority, os.getenv('ALLOW_REAL_DATA') == '1', os.getenv('INCLUDE_CLIENT_DETAILS') == '1')
+                   interval, priority, os.getenv('ALLOW_REAL_DATA') == '1', os.getenv('INCLUDE_CLIENT_DETAILS') == '1',
+                   safe_url(miniapp, public=True) if miniapp else '')
