@@ -1,21 +1,119 @@
 import { useEffect, useRef } from 'react'
 import cytoscape, { type Core } from 'cytoscape'
-import { Maximize2, Minus, Plus, Pause, Play } from 'lucide-react'
+import { Maximize2, Minus, Plus, Pause, Play, Activity, Network, Layers3 } from 'lucide-react'
 import type { GraphEdge, GraphNode } from '../types/graph'
 import { getClusterColor, roleMeta } from '../data/mockData'
 import { riskColors, riskIndex, type Copy } from '../i18n'
-type Mode='priority'|'role'|'cluster'
-interface Props {nodes:GraphNode[];edges:GraphEdge[];selectedId:string;onSelect:(id:string)=>void;t:Copy;colorMode:Mode;onColorMode:(mode:Mode)=>void;motion:boolean;onMotion:()=>void}
-export function DesignNetwork({nodes,edges,selectedId,onSelect,t,colorMode,onColorMode,motion,onMotion}:Props){
- const container=useRef<HTMLDivElement>(null);const graph=useRef<Core|null>(null);const handler=useRef(onSelect);handler.current=onSelect
- useEffect(()=>{if(!container.current)return;const cy=cytoscape({container:container.current,elements:[],layout:{name:'preset'},minZoom:.25,maxZoom:3,pixelRatio:Math.min(window.devicePixelRatio,2),style:[
- {selector:'node',style:{'background-color':'data(color)','border-color':'data(color)','border-width':2,'border-opacity':.5,width:24,height:24,label:'data(label)',color:'#bbd1c7','font-size':11,'text-valign':'bottom','text-margin-y':10,'text-background-color':'#091711','text-background-opacity':.8,'text-background-padding':'3px'}},
- {selector:'node:selected',style:{width:34,height:34,'border-color':'#eefff4','border-width':3,'font-weight':600,color:'#fff','overlay-color':'data(color)','overlay-opacity':.12,'overlay-padding':12}},
- {selector:'edge',style:{width:1.2,'line-color':'data(color)','target-arrow-color':'data(color)','target-arrow-shape':'triangle','curve-style':'unbundled-bezier','control-point-distances':35,'control-point-weights':.5,opacity:.35}},
- {selector:'edge.focused',style:{width:2,opacity:.85,'line-style':'dashed','line-dash-pattern':[7,10]}},
- {selector:'edge.hovered',style:{width:2.5,opacity:1,label:'data(amount)',color:'#effff5','font-size':12,'text-background-color':'#091711','text-background-opacity':1,'text-background-padding':'5px'}}]});graph.current=cy;cy.on('tap','node',e=>handler.current(e.target.id()));cy.on('mouseover','edge',e=>e.target.addClass('hovered'));cy.on('mouseout','edge',e=>e.target.removeClass('hovered'));const observer=new ResizeObserver(()=>{cy.resize();cy.fit(undefined,65)});observer.observe(container.current);return()=>{observer.disconnect();cy.destroy();graph.current=null}},[])
- useEffect(()=>{const cy=graph.current;if(!cy)return;const color=(n:GraphNode)=>colorMode==='priority'?riskColors[riskIndex(n.priorityScore)]:colorMode==='cluster'?getClusterColor(n.clusterId):roleMeta[n.role].color;cy.batch(()=>{cy.elements().remove();cy.add([...nodes.map(n=>({data:{id:n.id,label:n.gid,color:color(n)},position:{x:n.x*8,y:n.y*6}})),...edges.map(e=>({data:{...e,color:color(nodes.find(n=>n.id===e.source)!)}}))])});cy.fit(undefined,65)},[nodes,edges,colorMode])
- useEffect(()=>{const cy=graph.current;if(!cy)return;cy.nodes().unselect();cy.edges().removeClass('focused');const node=cy.getElementById(selectedId);node.select();node.connectedEdges().addClass('focused');if(node.length)cy.animate({center:{eles:node}},{duration:window.matchMedia('(prefers-reduced-motion: reduce)').matches?0:350})},[selectedId,nodes,edges,colorMode])
- useEffect(()=>{const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');let timer:ReturnType<typeof setInterval>|undefined;let step=0;const update=()=>{clearInterval(timer);if(motion&&!reduced.matches)timer=setInterval(()=>{graph.current?.edges('.focused').style('line-dash-offset',--step)},100)};update();reduced.addEventListener('change',update);return()=>{clearInterval(timer);reduced.removeEventListener('change',update)}},[motion])
- return <div className="design-network"><div className="network-toolbar"><div className="view-modes">{(['priority','role','cluster'] as Mode[]).map((m,i)=><button key={m} aria-pressed={colorMode===m} onClick={()=>onColorMode(m)}>{[t.signals,t.roles,t.clusters][i]}</button>)}</div><div className="network-controls"><button aria-label={motion?t.pause:t.play} onClick={onMotion}>{motion?<Pause size={14}/>:<Play size={14}/>}</button><button aria-label={t.zoomOut} onClick={()=>graph.current?.zoom(Math.max(.25,(graph.current?.zoom()??1)-.2))}><Minus size={15}/></button><button aria-label={t.zoomIn} onClick={()=>graph.current?.zoom(Math.min(3,(graph.current?.zoom()??1)+.2))}><Plus size={15}/></button><button aria-label={t.fit} onClick={()=>graph.current?.fit(undefined,65)}><Maximize2 size={15}/></button></div></div><div className="network-viewport"><svg className="kazakhstan-map" viewBox="0 0 900 550" aria-hidden="true"><defs><pattern id="mapDots" width="9" height="9" patternUnits="userSpaceOnUse"><circle cx="3" cy="3" r="1" fill="#62bb8b" opacity=".32"/></pattern><linearGradient id="mapFill" x2="0" y2="1"><stop stopColor="#244d36" stopOpacity=".4"/><stop offset="1" stopColor="#173025" stopOpacity=".1"/></linearGradient></defs><path id="kz-shape" d="M72 177 111 149 136 156 166 134 183 153 222 141 243 114 283 128 317 94 350 112 381 81 406 109 444 91 463 107 477 78 507 94 523 130 563 119 594 135 619 119 644 144 676 131 688 156 723 164 738 187 780 175 805 202 845 214 830 248 800 266 789 299 753 308 751 333 721 341 696 370 656 356 622 375 586 359 554 376 533 360 508 402 478 399 456 380 443 411 406 420 382 397 358 389 330 370 299 354 277 353 262 385 233 400 203 397 203 363 179 348 166 323 133 324 120 292 91 278 102 251 83 229 92 204Z" fill="url(#mapFill)" stroke="#5b9670" strokeOpacity=".38" strokeWidth="1.4"/><use href="#kz-shape" fill="url(#mapDots)" stroke="none"/><text x="447" y="470" textAnchor="middle" fill="#7b9b86" fontSize="12" letterSpacing="9">QAZAQSTAN</text></svg><div className="map-aura" aria-hidden="true"/><div className="cy-container" ref={container}/><div className="map-caption">{t.map}</div>{!nodes.length&&<div className="graph-empty">{t.empty}</div>}</div><div className="network-bottom"><span><i/>{t.direction}</span><span>{nodes.length} {t.nodes.toLowerCase()} · {edges.length} {t.edges.toLowerCase()}</span></div></div>
+import { riskNodeImage } from './RiskAvatar'
+import { KazakhstanMap } from './KazakhstanMap'
+import { attachFlowAnimation } from './flowAnimation'
+
+type Mode = 'priority' | 'role' | 'cluster'
+interface Props {
+  nodes: GraphNode[]; edges: GraphEdge[]; selectedId: string; onSelect: (id: string) => void
+  t: Copy; colorMode: Mode; onColorMode: (mode: Mode) => void; motion: boolean; onMotion: () => void
+}
+const modeIcons = [Activity, Network, Layers3]
+
+export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode, onColorMode, motion, onMotion }: Props) {
+  const container = useRef<HTMLDivElement>(null)
+  const mapScene = useRef<SVGGElement>(null)
+  const flowCanvas = useRef<HTMLCanvasElement>(null)
+  const graph = useRef<Core | null>(null)
+  const handler = useRef(onSelect)
+  handler.current = onSelect
+
+  useEffect(() => {
+    if (!container.current) return
+    const cy = cytoscape({
+      container: container.current, elements: [], layout: { name: 'preset' },
+      minZoom: .25, maxZoom: 3, pixelRatio: Math.min(window.devicePixelRatio, 2),
+      style: [
+        { selector: 'node', style: {
+          'background-color': '#102019', 'background-image': 'data(portrait)', 'background-fit': 'cover',
+          'border-width': 0, width: 38, height: 38, label: 'data(label)', color: '#c4d6c9',
+          'font-size': 12, 'text-valign': 'bottom', 'text-margin-y': 8,
+          'text-background-color': '#0a1710', 'text-background-opacity': .9, 'text-background-padding': '4px',
+        } },
+        { selector: 'node:selected', style: { width: 48, height: 48, 'border-color': '#d8edbb', 'border-width': 1.5,
+          'font-weight': 600, color: '#fff', 'overlay-color': 'data(color)', 'overlay-opacity': .09, 'overlay-padding': 12 } },
+        { selector: 'edge', style: { width: 1.2, 'line-color': 'data(color)', 'target-arrow-color': 'data(color)',
+          'target-arrow-shape': 'triangle', 'arrow-scale': .75, 'curve-style': 'unbundled-bezier',
+          'control-point-distances': 35, 'control-point-weights': .5, opacity: .3 } },
+        { selector: 'edge.focused', style: { width: 2.2, opacity: .75 } },
+        { selector: 'edge.hovered', style: { width: 3, opacity: 1, label: 'data(amount)', color: '#effff5',
+          'font-size': 12, 'text-background-color': '#091711', 'text-background-opacity': 1, 'text-background-padding': '5px' } },
+      ],
+    })
+    graph.current = cy
+    cy.on('tap', 'node', event => handler.current(event.target.id()))
+    cy.on('mouseover', 'edge', event => event.target.addClass('hovered'))
+    cy.on('mouseout', 'edge', event => event.target.removeClass('hovered'))
+    const syncMap = () => {
+      const pan = cy.pan()
+      mapScene.current?.setAttribute('transform', `translate(${pan.x} ${pan.y}) scale(${cy.zoom()})`)
+    }
+    cy.on('pan zoom resize', syncMap)
+    const observer = new ResizeObserver(() => { cy.resize(); cy.fit(undefined, 28); syncMap() })
+    observer.observe(container.current)
+    return () => { observer.disconnect(); cy.destroy(); graph.current = null }
+  }, [])
+
+  useEffect(() => {
+    const cy = graph.current
+    if (!cy) return
+    const color = (node: GraphNode) => colorMode === 'priority' ? riskColors[riskIndex(node.priorityScore)]
+      : colorMode === 'cluster' ? getClusterColor(node.clusterId) : roleMeta[node.role].color
+    const byId = new Map(nodes.map(node => [node.id, node]))
+    cy.batch(() => {
+      cy.elements().remove()
+      cy.add([
+        ...nodes.map(node => ({ data: { id: node.id, label: node.gid, color: color(node), portrait: riskNodeImage(node.priorityScore, color(node)) }, position: { x: node.x * 8, y: node.y * 6 } })),
+        ...edges.filter(edge => byId.has(edge.source) && byId.has(edge.target)).map(edge => ({ data: { ...edge, color: color(byId.get(edge.source)!) } })),
+      ])
+    })
+    cy.fit(undefined, 28)
+  }, [nodes, edges, colorMode])
+
+  useEffect(() => {
+    const cy = graph.current
+    if (!cy) return
+    cy.nodes().unselect(); cy.edges().removeClass('focused')
+    const node = cy.getElementById(selectedId)
+    node.select(); node.connectedEdges().addClass('focused')
+    if (node.length) cy.stop().animate({ center: { eles: node } }, { duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 350 })
+  }, [selectedId, nodes, edges, colorMode])
+
+  useEffect(() => {
+    if (!graph.current || !flowCanvas.current || !container.current) return
+    return attachFlowAnimation(graph.current, flowCanvas.current, container.current, motion)
+  }, [motion])
+
+  const zoomBy = (step: number) => {
+    const cy = graph.current
+    if (cy) cy.zoom({ level: Math.max(.25, Math.min(3, cy.zoom() + step)), renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } })
+  }
+
+  return <div className="design-network">
+    <div className="network-toolbar">
+      <div className="view-modes">{(['priority', 'role', 'cluster'] as Mode[]).map((mode, index) => {
+        const Icon = modeIcons[index]
+        return <button key={mode} aria-pressed={colorMode === mode} onClick={() => onColorMode(mode)}><Icon size={12}/>{[t.signals, t.roles, t.clusters][index]}</button>
+      })}</div>
+      <div className="network-controls">
+        <button aria-label={motion ? t.pause : t.play} aria-pressed={motion} onClick={onMotion}>{motion ? <Pause size={14}/> : <Play size={14}/>}</button>
+        <button aria-label={t.zoomOut} onClick={() => zoomBy(-.2)}><Minus size={15}/></button>
+        <button aria-label={t.zoomIn} onClick={() => zoomBy(.2)}><Plus size={15}/></button>
+        <button aria-label={t.fit} onClick={() => graph.current?.fit(undefined, 28)}><Maximize2 size={15}/></button>
+      </div>
+    </div>
+    <div className="network-viewport">
+      <KazakhstanMap sceneRef={mapScene}/>
+      <div className="map-aura" aria-hidden="true"/>
+      <div className="cy-container" ref={container}/>
+      <canvas ref={flowCanvas} className="flow-canvas" aria-hidden="true"/>
+      {!nodes.length && <div className="graph-empty">{t.empty}</div>}
+    </div>
+    <div className="network-bottom"><span><i/>{t.direction}</span><span>{nodes.length} {t.nodes.toLowerCase()} · {edges.length} {t.edges.toLowerCase()}</span></div>
+  </div>
 }
