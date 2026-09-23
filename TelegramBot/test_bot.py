@@ -1,6 +1,7 @@
 import hashlib
 import tempfile
 import unittest
+import ssl
 from dataclasses import replace
 from pathlib import Path
 from .bot import Bot
@@ -8,7 +9,7 @@ from .config import Config, safe_url
 from .demo import snapshot, OfflineBackend, OfflineTelegram
 from .engine import Store
 from .messages import alert, WELCOME
-from .transport import ServiceError
+from .transport import ServiceError, tls_context
 
 A, B, C = ('100000000000000001', '100000000000000002', '100000000000000003')
 
@@ -189,6 +190,11 @@ class BotTests(unittest.TestCase):
                 safe_url(url)
         self.assertEqual(safe_url('http://127.0.0.1:8000/'), 'http://127.0.0.1:8000')
         self.assertEqual(ServiceError('Telegram', 429, None).retry_after, 5)
+
+    def test_tls_keeps_certificate_and_hostname_verification(self):
+        context = tls_context()
+        self.assertTrue(context.check_hostname)
+        self.assertEqual(context.verify_mode, ssl.CERT_REQUIRED)
 
 
 if __name__ == '__main__':
