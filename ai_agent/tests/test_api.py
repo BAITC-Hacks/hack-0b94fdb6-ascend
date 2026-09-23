@@ -64,7 +64,7 @@ def test_no_result_disabled_and_body_limit(snap, monkeypatch):
     with TestClient(app) as client:
         assert client.post('/api/v1/assistant', json={'question':'x'}).json()['error']['code'] == 'no_result'
         state['snapshot'] = snap
-        assert client.post('/api/v1/assistant', json={'question':'x'}).json()['error']['code'] == 'assistant_disabled'
+        assert client.post('/api/v1/assistant', json={'question':'x'}).json()['mode'] == 'fallback'
         assert client.post('/api/v1/assistant', content='x'*65537).status_code == 400
 
 
@@ -109,7 +109,7 @@ def test_final_step_disallows_more_tools_and_preserves_reasoning(snap):
         def __init__(self):self.responses=self;self.requests=[]
         async def create(self,**kwargs):
             self.requests.append(kwargs)
-            if len(self.requests)<5:
+            if len(self.requests)<6:
                 return NS(output=[NS(type='reasoning',encrypted_content='opaque'),NS(type='function_call',name='get_node',arguments='{"gid":"101"}',call_id=str(len(self.requests)))],output_text='')
             return NS(output=[],output_text='У #101 недостаточно наблюдений.')
     c=Client();a=Assistant(snap,client=c,enabled=True,model='test')

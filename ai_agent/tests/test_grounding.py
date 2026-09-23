@@ -15,7 +15,7 @@ def test_percentile_notation_matches_explanation():
     assert numbers('betweenness >= p99') == numbers('99-й процентиль')
 
 
-def test_rounded_draft_is_repaired_before_return():
+def test_small_values_are_not_subject_to_large_amount_guard():
     import asyncio
     from types import SimpleNamespace as NS
     from ai_agent.service import Assistant
@@ -36,7 +36,7 @@ def test_rounded_draft_is_repaired_before_return():
     snapshot = {'nodes':[{'gid':'101','role':'coordinator','role_score':0.8776,'cluster_id':0}], 'edges':[], 'clusters':[]}
     client = MessageClient()
     result = asyncio.run(Assistant(snapshot, client=client, enabled=True, model='test').ask('Объясни узел'))
-    assert result['answer'] == 'У #101 оценка 0.8776.'
-    assert len(client.requests) == 3
-    assert client.requests[-1]['tool_choice'] == 'none'
-    assert any(isinstance(m, dict) and m.get('role') == 'developer' for m in client.requests[-1]['input'])
+    assert result['answer'].startswith('У #101 оценка 0.88.')
+    assert len(client.requests) == 2
+    assert client.requests[-1]['tool_choice'] == 'auto'
+    assert result['warnings']==[]

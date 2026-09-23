@@ -29,3 +29,15 @@ reference_counts: {nodes: 2248, edges: 3119, transactions: 4840, seeds: 81, comp
 reference_depth_counts: {0: 81, 1: 472, 2: 462, 3: 789, 4: 444}
 reference_turnover_kzt: 365890012.01
 reference_period: {from: '2026-07-01', to: '2026-07-31'}
+
+extras:
+  enabled: true
+  boundary: {money_bins: [50000, 200000, 1000000], min_bucket: 10, likely: 0.6, sink: 0.3, late_from: '2026-07-30'}
+  temporal: {fast_pass_days: 2, fast_share: 0.5, fast_min_kzt: 50000, sync_in_min: 3, sync_out_min: 5, burst_min_tx: 5, burst_ratio: 3, spike_mad: 3}
+  routes: {cycle_max_len: 6, cycle_budget: 100000, chain_days: 2, chain_min_repeats: 2, chain_max: 500}
+  anomalies: {split_window_days: 7, split_min_tx: 3, split_cv: 0.15, depth_quantile: 0.99, global_quantile: 0.90}
+  resilience: {remove_counts: [0, 5, 10, 20, 50, 100], random_repeats: 20}
+  gaps:
+    sink_min_kzt: 300000
+    small_share: 0.5
+    weights: {G_BOUNDARY: 1.0, G_EXTERNAL: 0.9, G_SINK: 0.8, G_SEED_SILENT: 0.7, G_LATE: 0.6, G_THRESHOLD: 0.5, G_SEED_IN: 0.5}

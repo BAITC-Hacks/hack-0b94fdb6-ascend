@@ -32,7 +32,7 @@ def install(app, get_snapshot, *, assistant_factory=Assistant, replace_disabled=
     @router.get('/api/v1/assistant/status')
     def status():
         snap = get_snapshot()
-        return {'enabled': enabled(), 'ready': enabled() and snap is not None,
+        return {'enabled': enabled(), 'ready': snap is not None, 'mode': 'ai' if enabled() else 'fallback',
                 'run_id': snap.get('run', {}).get('run_id') if snap else None}
 
     @router.post(path)
@@ -110,6 +110,10 @@ def install(app, get_snapshot, *, assistant_factory=Assistant, replace_disabled=
     @router.get('/assistant', include_in_schema=False)
     def console():
         return FileResponse(ui / 'index.html', media_type='text/html')
+
+    @router.get('/analysis-extras', include_in_schema=False)
+    def extras_screen():
+        return FileResponse(ui / 'extras.html', media_type='text/html')
 
     @router.get('/ai-agent/assistant.js', include_in_schema=False)
     def widget():

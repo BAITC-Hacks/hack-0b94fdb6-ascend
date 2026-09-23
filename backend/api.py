@@ -242,6 +242,11 @@ def create_app(output_dir=None, frontend_dir=None):
         app.mount('/', StaticFiles(directory=dist, html=True), name='frontend')
     else:
         app.add_api_route('/', check, response_class=HTMLResponse, include_in_schema=False)
+    try:
+        from graph.integration.extras_api import install as install_extras
+        install_extras(app, lambda: app.state.snapshot.data if app.state.snapshot else None)
+    except ModuleNotFoundError:
+        pass  # Base backend can still start without optional graph dependencies.
     return app
 
 

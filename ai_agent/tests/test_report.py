@@ -33,5 +33,5 @@ def test_bad_numeric_draft_returns_actual_financial_facts():
     result=asyncio.run(Assistant({'nodes':[NODE], 'edges':[], 'clusters':[]},client=c,enabled=True,model='test').ask('Проанализируй'))
     assert '999999999' not in result['answer']
     assert '610,100 ₸' in result['answer'] and '3,374,866 ₸' in result['answer']
-    assert 'Автоматическое пояснение не прошло проверку' in result['answer']
+    assert result['mode']=='fallback' and result['warnings']
     assert result['gids']==['101'] and c.count==3

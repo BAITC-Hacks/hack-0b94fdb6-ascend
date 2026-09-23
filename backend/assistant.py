@@ -84,8 +84,7 @@ def build_agent(snapshot, **options):
 
 async def answer(request, get_snapshot):
     enabled, message = readiness()
-    if not enabled:
-        return failure('assistant_disabled', message, 503)
+    # SPEC_GRAPH_AI: missing provider credentials activate the local fallback.
     # Bind the request to one immutable published run before any await.
     snapshot = get_snapshot()
     agent = None

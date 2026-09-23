@@ -70,7 +70,8 @@ def test_agent_roundtrip_and_history(snap):
     agent = Assistant(snap, client=client, enabled=True, model='test-model')
     response = asyncio.run(agent.ask('Объясни #1', [{'role': 'user', 'content': 'прошлый вопрос'}] * 8))
     assert response['gids'] == ['1'] and response['mode'] == 'ai'
-    assert response['tool_calls'] == [{'name': 'get_node', 'args': {'gid': '1'}}]
+    assert response['tool_calls'][0]['name']=='get_node' and response['tool_calls'][0]['ok']
+    assert response['tool_calls'][0]['ms']>=0
     assert all(r['store'] is False for r in client.requests)
     # History: last six plus current, followed by function call/result.
     assert len([x for x in client.requests[0]['input'] if isinstance(x, dict) and x.get('role') == 'user']) == 7
@@ -78,24 +79,23 @@ def test_agent_roundtrip_and_history(snap):
 
 @pytest.mark.parametrize('answer', ['У #999 признаки консолидации.', 'У #1 вход 999999.', 'У #1 виновен.', ''])
 def test_agent_rejects_unsupported_facts(snap, answer):
-    with pytest.raises(AssistantError):
-        asyncio.run(Assistant(snap, client=Client(answer), enabled=True, model='test').ask('Объясни узел'))
+    result=asyncio.run(Assistant(snap, client=Client(answer), enabled=True, model='test').ask('Объясни #1'))
+    assert result['mode']=='fallback'
+    assert '#999' not in result['answer'] and '999999' not in result['answer'] and 'виновен' not in result['answer']
 
 
-def test_agent_disabled_without_key(snap, monkeypatch):
-    monkeypatch.delenv('OPENAI_API_KEY', raising=False)
-    with pytest.raises(AssistantError, match='отключён'):
-        asyncio.run(Assistant(snap, enabled=True, model='test').ask('Вопрос'))
+def test_agent_disabled_without_key(snap,monkeypatch):
+    monkeypatch.delenv('OPENAI_API_KEY',raising=False)
+    result=asyncio.run(Assistant(snap,enabled=True,model='test').ask('Объясни #1'))
+    assert result['mode']=='fallback' and result['gids']==['1']
 
 
 def test_agent_timeout_and_steps(snap):
-    with pytest.raises(AssistantError) as info:
-        asyncio.run(Assistant(snap, client=Client(delay=.1), enabled=True, model='test', timeout=.01).ask('Вопрос'))
-    assert info.value.code == 'internal'
-    client = Client(repeat=True)
-    with pytest.raises(AssistantError):
-        asyncio.run(Assistant(snap, client=client, enabled=True, model='test').ask('Вопрос'))
-    assert len(client.requests) == 5
+    result=asyncio.run(Assistant(snap,client=Client(delay=.1),enabled=True,model='test',timeout=.01).ask('Объясни #1'))
+    assert result['mode']=='fallback'
+    client=Client(repeat=True)
+    result=asyncio.run(Assistant(snap,client=client,enabled=True,model='test').ask('Объясни #1'))
+    assert result['mode']=='fallback' and len(client.requests)==6
 
 
 def test_agent_rejects_system_history(snap):

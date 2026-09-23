@@ -15,4 +15,4 @@ def test_backend_adapter_errors(monkeypatch):
     state['snapshot'] = {'nodes': [], 'edges': [], 'clusters': []}
     monkeypatch.setenv('ASSISTANT_ENABLED', '0')
     response = client.post('/api/v1/assistant', json={'question': 'Вопрос'})
-    assert response.status_code == 503 and response.json()['error']['code'] == 'assistant_disabled'
+    assert response.status_code == 200 and response.json()['mode'] == 'fallback'

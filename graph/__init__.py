@@ -26,6 +26,16 @@ def load_config(path):
     unknown = set(supplied) - set(defaults)
     if unknown:
         raise ValueError(f'Неизвестные параметры: {sorted(unknown)}')
+    if 'extras' in supplied:
+        import copy
+        def merge(base,patch):
+            if not isinstance(patch,dict):raise ValueError('extras должен быть объектом')
+            unknown=set(patch)-set(base)
+            if unknown:raise ValueError(f'Неизвестные extras: {sorted(unknown)}')
+            for key,value in patch.items():
+                if isinstance(base[key],dict):merge(base[key],value)
+                else:base[key]=value
+        extra=copy.deepcopy(defaults['extras']);merge(extra,supplied['extras']);supplied=dict(supplied,extras=extra)
     defaults.update(supplied)
     c = defaults
     if c['version'] != 'roles-v1' or not 0 < c['transit_low'] < 1 < c['transit_high']:
@@ -74,6 +84,9 @@ def analyze(data_dir: Path, config_path: Path = DEFAULT_CONFIG) -> AnalysisResul
     frame = stage('evidence', lambda: explain(frame, config))
     frame = stage('layout', lambda: layout(ug, components, frame, config))
     clusters = stage('cluster_hypotheses', lambda: summarize(frame, edges, config))
+    from .extras import run_all
+    extras, extra_summary, extra_warnings = stage('extras', lambda: run_all(g, frame, tx, config, clusters))
+    quality['warnings'].extend(extra_warnings)
     top = frame.sort_values('priority_rank').head(config['top_n_api'])[['priority_rank', 'gid', 'role', 'priority_score', 'why']].rename(columns={'priority_rank': 'rank'}).reset_index(drop=True)
     expected = config.get('reference_counts', {}).get('components')
     if expected is not None and expected != len(components):
@@ -88,7 +101,8 @@ def analyze(data_dir: Path, config_path: Path = DEFAULT_CONFIG) -> AnalysisResul
                 period={'from': str(tx.date.min()) if len(tx) else None, 'to': str(tx.date.max()) if len(tx) else None},
                 config=config, warnings=quality['warnings'],
                 machine={'os': platform.system(), 'python': platform.python_version(), 'cpu': platform.processor() or str(os.cpu_count()), 'ram_gb': None}, error=None)
-    return AnalysisResult(frame, edges, clusters, top, meta, quality)
+    meta['extras'] = extra_summary
+    return AnalysisResult(frame, edges, clusters, top, meta, quality, extras)
 
 
 __all__ = ['analyze', 'AnalysisResult', 'DataValidationError', 'DEFAULT_CONFIG']

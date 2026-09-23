@@ -21,6 +21,8 @@ def create_app(output_dir=None, *, snapshot_path=None, assistant_factory=None):
             return current.data if current else None
     kwargs = {'assistant_factory': assistant_factory} if assistant_factory else {}
     install(app, get_snapshot, replace_disabled=True, **kwargs)
+    from graph.integration.extras_api import install as install_extras
+    install_extras(app, get_snapshot)
     # Backend health must report the actual optional assistant state.
     app.router.routes[:] = [r for r in app.router.routes if getattr(r, 'path', None) != '/api/v1/health']
     from fastapi.routing import APIRoute
