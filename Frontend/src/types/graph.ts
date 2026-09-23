@@ -1,4 +1,13 @@
 export type Role = 'consolidator' | 'transit' | 'distributor' | 'terminal' | 'coordinator' | 'peripheral'
+export type SignalLevel = 'high' | 'elevated' | 'review' | 'background'
+
+export interface SignalMeta {
+  level: SignalLevel
+  label: string
+  shortLabel: string
+  color: string
+  softColor: string
+}
 
 export interface GraphNode {
   id: string
