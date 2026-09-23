@@ -1,0 +1,631 @@
+# CONTRACT_AI — Freedom Graph Intelligence «Граф денег»
+
+**Версия контракта:** 2.0 · **Версия методики:** `roles-v1` · **Дата:** 23.09.2026
+**Основание:** ТЗ кейса HackAlem AI (DOCX) → `PROJECT.md` v1.0 → этот контракт → реализация.
+В `PROJECT.md` этот документ называется `CONTRACT.md` — это один и тот же файл.
+
+| Модуль | Владелец | Ветка |
+|---|---|---|
+| Graph Engine + AI-ассистент, Lead (контракт, интеграция, приёмка) | `<имя>` | `feature/graph`, `feature/assistant` |
+| Backend (pipeline, CSV, API) + Telegram-бот | `<имя>` | `feature/backend`, `feature/telegram` |
+| Frontend (сайт) | `<имя>` | `feature/frontend` |
+
+Приоритеты объёма (PROJECT §1): **P0** — ядро, три CSV, сайт, воспроизводимость, README. **P1** — Telegram-бот. **P2** — AI-ассистент и доп. исследования.
+
+> Противоречие между документами записывается в §17 и разрешается явно. Контракт не меняет объём проекта молча.
+
+---
+
+## Для AI-агентов (Codex / Claude / Cursor и др.)
+
+1. Прочитай этот документ **целиком** до любой работы. Затем прочитай `PROJECT.md`.
+2. Имена полей, файлов, эндпоинтов, ролей, кодов ошибок — **ровно как здесь**.
+3. Не хватает поля или правила — **не придумывай**: `TODO(CONTRACT): <что нужно>` и сообщи человеку.
+4. Меняй файлы **только в своей папке** (§1). Общие файлы (`CONTRACT_AI.md`, `contracts/`, `config/`) меняет только Lead.
+5. **Никаких захардкоженных gid** и количеств узлов по ролям в логике.
+6. Формулы ролей и приоритета живут **только** в `graph/`. Backend, сайт и бот их не дублируют.
+7. `gid` в JSON — **строка** (§6.1). Никогда не превращай его в `number` в TypeScript/JavaScript.
+8. Не коммить `.env`, токены, ключи и папку `data/`.
+
+---
+
+## §0. Золотые правила
+
+| # | Правило | Основание |
+|---|---|---|
+| 1 | Обязательный путь (pipeline → CSV → API → сайт) работает **без сети, GPU, LLM и платных сервисов** | ТЗ §9, PROJECT §10, A12 |
+| 2 | Каждая роль — формальное правило с числовым порогом; evidence — детерминированный шаблон из рассчитанных признаков | ТЗ must have 3, PROJECT §4.2–4.3 |
+| 3 | Выводы — гипотезы: «признаки консолидации», «структурно значимый кандидат». Не «организатор», не «виновен» | ТЗ §9, PROJECT §2 |
+| 4 | Только структура и суммы из данных. Никаких выдуманных атрибутов | ТЗ §9 |
+| 5 | Повторный запуск на тех же входах и конфиге даёт **побайтово идентичные CSV** | PROJECT §10, A10 |
+| 6 | Все узлы (включая 19 изолированных seed) присутствуют во всех результатах | PROJECT §3.1, A02, A09 |
+| 7 | Граница обхода (depth = 4) никогда не даёт `terminal` | ТЗ §6, PROJECT §3.2, A08 |
+| 8 | API читает готовый снимок; полный анализ на запрос не запускается | PROJECT §9 |
+| 9 | Сбой Telegram или AI не влияет на сайт и CSV | PROJECT §6, §7, §8 |
+
+---
+
+## §1. Репозиторий
+
+```
+PROJECT.md
+CONTRACT_AI.md
+README.md
+run_pipeline.py            # [Backend] одна команда: parquet → три CSV + снимок
+requirements.txt           # [Backend] версии зафиксированы (==)
+.env.example               # [Backend] только имена переменных
+config/
+  methodology.yaml         # [Graph] ВСЕ пороги, веса, зерно (версионируется)
+graph/                     # [Graph] загрузка, валидация, признаки, кластеры, роли, приоритет, evidence
+  __init__.py              #   публичная функция analyze() — §5
+  load.py  validate.py  features.py  clusters.py  roles.py  priority.py  evidence.py  layout.py
+  extras/                  #   P2: temporal.py, cycles.py, resilience.py, gaps.py
+backend/                   # [Backend] orchestration, снимок, экспорт CSV, FastAPI
+  pipeline.py  export.py  snapshot.py  api.py
+  assistant/               # [Graph+AI] P2: AI-ассистент
+frontend/                  # [Frontend] React + Vite + TypeScript + Cytoscape.js
+  dist/                    #   собранная версия — коммитится (§12.4)
+telegram_bot/              # [Backend] P1: aiogram, long polling
+contracts/                 # [Lead] схемы и СИНТЕТИЧЕСКИЕ примеры (§14)
+  examples/*.json
+tests/                     # все: pytest (§15)
+docs/                      # методика, диаграмма, сценарий демо
+data/                      # в .gitignore (§16)
+starter/                   # код организаторов, не редактируем
+output/                    # результаты pipeline (§7)
+```
+
+---
+
+## §2. Фактические входные данные (проверено 23.09 на выданных parquet)
+
+### 2.1. Схема
+
+| Файл | Строк | Колонки и фактические типы |
+|---|---:|---|
+| `nodes.parquet` | 2 248 | `gid` int64, `depth` int64 (0–4), `is_seed` bool |
+| `edges.parquet` | 3 119 | `src` int64, `dst` int64, `sum_kzt` float64, `n_tx` int64, `depth` int8 (1–4) |
+| `transactions.parquet` | 4 840 | `src` int64, `dst` int64, `date` **object (`datetime.date`)**, `sum_kzt` float64 |
+
+### 2.2. Установленные факты
+
+| Факт | Значение | Следствие |
+|---|---|---|
+| **gid** | 18-значные числа, диапазон `100000000011452100` – `100000008782800100` | **Больше `Number.MAX_SAFE_INTEGER` (9·10¹⁵).** В JSON только строкой (§6.1) |
+| null | нет ни в одном файле | — |
+| `gid` уникален | да | — |
+| Пары `(src, dst)` уникальны, петель нет | да | ребро = пара |
+| Ссылки `src`/`dst` на неизвестные узлы | 0 | — |
+| Транзакции < 5 000 KZT | 0 | порог соблюдён |
+| Период | 2026-07-01 — 2026-07-31, 31 уникальная дата, **только дата без времени** | нельзя говорить о часах (PROJECT §8) |
+| Сверка транзакций с рёбрами | все 3 119 пар совпадают, расхождение сумм < 1e-10, `n_tx` совпадает везде | edges — источник потоков, transactions — время |
+| `edges.depth` | всегда `depth(src) + 1` | смысл: колено, на котором найдено ребро |
+| Оборот | 365 890 012.01 KZT | совпадает с кейсом |
+| Узлов с `out_deg = 0` по коленам | 0: 31 · 1: 305 · 2: 269 · 3: 505 · **4: 444** | все 444 узла depth 4 без исходящих; у depth ≤ 3 исходящие прослеживались |
+| Изолированные узлы | **19**, все — seed | свои кластеры, роль `peripheral` (§8.6) |
+| Seed только-получатели | 12 | — |
+| Seed с исходящими | 50 | — |
+| Взаимные пары (A→B и B→A) | 177 | суммируются в неориентированной проекции |
+| Циклов длиной ≤ 6 | 1 541 | P2 |
+
+### 2.3. Разрешение противоречия про компоненты (PROJECT §3.2)
+
+Фактически: **35** слабосвязных компонент на полном графе = **16** компонент среди узлов с рёбрами (крупнейшая 1 877, далее 270, 17, 13, …) **+ 19** изолированных seed. 2 248 − 1 877 − 19 = **352** — именно это число указано в кейсе (без изолятов). Противоречия нет. Тесты не используют эти числа как жёсткие ожидания.
+
+### 2.4. Правила валидации (`graph/validate.py`)
+
+**Структурные ошибки** → исключение `DataValidationError`, результат не публикуется:
+- нет файла или колонки; неприводимый тип;
+- дубли `gid`; дубли пар `(src, dst)`;
+- `src`/`dst` ссылается на неизвестный `gid`;
+- `sum_kzt ≤ 0` или не конечно; `n_tx < 1`;
+- агрегат транзакций по паре расходится с ребром: сумма > 0.01 KZT или `n_tx` не равен числу транзакций;
+- ребро без транзакций или транзакция без ребра.
+
+**Предупреждения** → в `quality_report.json`, запуск продолжается:
+- расхождения со справочными числами кейса (число узлов по коленам, оборот, число компонент);
+- петли (если появятся) — исключаются из метрик и перечисляются;
+- `edges.depth ≠ depth(src) + 1`.
+
+Строки молча не удаляются и не достраиваются.
+
+---
+
+## §3. Методика `roles-v1` (владелец — Graph)
+
+Все числа ниже лежат в `config/methodology.yaml`; в коде их нет. Предварительные количества — прогон 23.09 на выданных данных, окончательные попадают в `run.json` и README.
+
+### 3.1. Граф и признаки
+
+Направленный граф `DiGraph`: сначала все `nodes.gid`, затем рёбра с атрибутами `sum_kzt`, `n_tx`, `depth`.
+
+| Признак | Формула | Нули и особые случаи |
+|---|---|---|
+| `in_deg` / `out_deg` | число разных отправителей / получателей | 0 у изолятов |
+| `in_kzt` / `out_kzt` | сумма `sum_kzt` входящих / исходящих рёбер — **наблюдаемый** поток | 0 |
+| `in_tx` / `out_tx` | сумма `n_tx` входящих / исходящих | 0 |
+| `pass_through` | `out_kzt / in_kzt` | `null`, если `in_kzt = 0`. **Для seed не используется в правилах** |
+| `is_boundary` | `depth == 4` | — |
+| `is_isolated` | `in_deg + out_deg == 0` | — |
+| `external_inflow` | не seed и `out_kzt > in_kzt × 1.2` | признак неполноты данных, **не** аномалии |
+| `seed_in` | число разных seed среди прямых отправителей | — |
+| `seed_reach` | число разных seed, от которых есть направленный путь до узла | 0 у seed без входящих путей |
+| `betweenness` | `nx.betweenness_centrality(G, normalized=True)`, **без весов** | Вес = поток ≠ длина пути (PROJECT §4.1), поэтому веса не используем |
+| `pagerank` | `nx.pagerank(G, weight="sum_kzt", alpha=0.85)` | только для карточки и P2 |
+| `component_id` | номер слабосвязной компоненты, 0 = крупнейшая; порядок: размер ↓, min gid ↑ | изолят = своя компонента |
+| `cluster_id` | §3.2 | — |
+| `n_nbr_clusters` | число **других** кластеров среди соседей (вход + выход) | 0 |
+| `up_hubs` | число входящих соседей с базовой ролью `consolidator`/`distributor`/`transit` | считается после §3.3 |
+| `down_hubs` | число исходящих соседей с базовой ролью `consolidator`/`distributor` | считается после §3.3 |
+
+### 3.2. Кластеры
+
+- **Метод:** `nx.community.louvain_communities(UG, weight="w", resolution=1.0, seed=42)`.
+- **Проекция `UG`:** неориентированная; для взаимных пар `w = sum_kzt(A→B) + sum_kzt(B→A)`. Все узлы, включая изоляты. Направление остаётся в исходном графе и интерфейсе.
+- **Нумерация:** `cluster_id` 0, 1, 2… по `n_nodes` ↓, затем минимальный `gid` ↑.
+- **Изолят** — отдельный кластер из одного узла.
+- **Предварительно:** 91 кластер (крупнейшие 277, 270, 148…), 8 кластеров содержат > 1 seed, время ~0.1 с.
+- Кластер ≠ компонента связности (§3.1).
+
+### 3.3. Роли: базовые правила (проход 1)
+
+Для каждого правила считается **сила** `s`. Правило сработало, если `s ≥ 1`.
+
+| ID | Роль | Условие | Сила `s` | Порог | Предв. |
+|---|---|---|---|---|---:|
+| `R_CONS` | `consolidator` | `in_deg ≥ CONS_MIN_IN_DEG` | `in_deg / 5` | 5 | 51 |
+| `R_DIST` | `distributor` | `out_deg ≥ DIST_MIN_OUT_DEG` | `out_deg / 10` | 10 | 64 |
+| `R_TRANS` | `transit` | не seed, `in_deg ≥ 1`, `out_deg ≥ 1`, `0.8 ≤ pass_through ≤ 1.2` | `1 + (0.2 − |pass_through − 1|) / 0.2` (от 1 до 2) | 0.8 / 1.2 | 70 |
+| `R_TERM` | `terminal` | `depth ≤ 3`, `out_deg = 0`, `in_kzt ≥ TERM_MIN_IN_KZT` | `in_kzt / 300 000` | 300 000 ₸ (≈ p90 входящих) | 125 |
+
+- **Пересечение:** базовая роль = правило с максимальной `s`. При равенстве: `consolidator` → `distributor` → `transit` → `terminal`. Предварительно `R_CONS` и `R_DIST` пересекаются у 15 узлов.
+- **Остальные сработавшие правила** сохраняются в `evidence_detail.alternatives`.
+- **Ни одно не сработало** → `peripheral` (`R_PERIPH`).
+- **Граница:** узел depth 4 может быть `consolidator` (если в него сходятся ≥ 5 плательщиков), но никогда `terminal`.
+- **Seed:** `R_TRANS` не применяется (входящие занижены). `R_CONS` и `R_DIST` применяются: наблюдаемые счётчики — нижняя оценка.
+
+### 3.4. Роль `coordinator` (проход 2, после кластеров и базовых ролей)
+
+`R_COORD` — все три условия:
+1. `betweenness ≥ COORD_BC_QUANTILE` — 99-й перцентиль по графу (фактическое значение порога записывается в `run.json`);
+2. `n_nbr_clusters ≥ 2` — связывает несколько сообществ;
+3. `up_hubs ≥ 2` **или** `down_hubs ≥ 2` — связан с несколькими хабами.
+
+Смысл: структурно значимый связующий узел. Один оборот не делает узел координатором. Предварительно: **~21 узел**. Роль переопределяет базовую; базовая сохраняется в `base_role`.
+
+### 3.5. `role_score` — эвристическая уверенность, не вероятность
+
+| Случай | Формула |
+|---|---|
+| Сработавшее правило | `min(1, 0.5 + 0.5 × (s − 1))`: на пороге 0.5, при двукратном превышении 1.0 |
+| `coordinator` | среднее трёх величин `min(1, 0.5 + 0.5 × (value / threshold − 1))` по условиям 1–3 (для условия 3 берётся `max(up_hubs, down_hubs)`) |
+| `peripheral`, не изолят | `1 − 0.5 × s_max`, где `s_max` — максимальная сила среди несработавших правил (близко к порогу → ниже уверенность) |
+| `peripheral`, изолят | `0.3` — недостаточно наблюдений |
+| Граница (depth 4) | итог × `BOUNDARY_FACTOR = 0.8` |
+
+Округление до 4 знаков. Итог всегда конечен и лежит в [0, 1].
+
+### 3.6. `priority_score` — полезность первоочередной проверки
+
+```
+raw = 0.25·pct(in_kzt) + 0.20·pct(betweenness) + 0.15·pct(n_nbr_clusters)
+    + 0.15·pct(seed_reach) + 0.25·role_weight(role)·role_score
+```
+- `pct(x)` = `rank(method="max", pct=True)` по всем узлам; **если `x = 0`, то `pct = 0`**.
+- `role_weight`: coordinator 1.0 · consolidator 0.8 · distributor 0.7 · transit 0.6 · terminal 0.4 · peripheral 0.0.
+- **Seed:** `raw × SEED_FACTOR = 0.75`. Seed уже известны, а цель — сместить фокус выше по цепочке (ТЗ §2). Seed **не исключаются**.
+- `priority_score = raw / max(raw)`, округление до 6 знаков.
+- **Порядок:** `priority_score` ↓, затем `gid` ↑. Так получается `priority_rank` 1…2248 для всех узлов.
+- **Вклад каждой компоненты** хранится в `evidence_detail.priority_contributions`.
+- Необязательные временные и AI-признаки в `priority_score` **не входят** (PROJECT §4.5).
+
+### 3.7. Evidence (≤ 200 символов, детерминированно, без LLM)
+
+Структура: `[признак роли с числом и порогом]; [второй факт]; [оговорка]`. Если строка длиннее 200 символов, **сначала выбрасывается второй факт**, оговорка остаётся. Ни одна строка не обрезается посреди слова.
+
+| Роль | Шаблон (пример) |
+|---|---|
+| consolidator | «Признаки консолидации: 11 отправителей (порог 5), вход 1,2 млн ₸; дальше ушло 3%» |
+| distributor | «Веерное распределение: 64 получателя (порог 10), выход 3,4 млн ₸» |
+| transit | «Признаки транзита: дальше ушло 97% входа (коридор 80–120%), 2 отправителя → 3 получателя» |
+| terminal | «Гипотеза конечного получателя: вход 420 тыс ₸ от 3 отправителей, исходящих нет; колено 2, обход не обрывался» |
+| coordinator | «Связующий узел: посредничество в топ-1%, связан с 7 кластерами и 4 хабами» |
+| peripheral | «Признаков ролей нет: 1 отправитель, 0 получателей» |
+
+**Оговорки** (добавляются, если применимы):
+
+| Условие | Текст |
+|---|---|
+| граница | «исходящие не прослежены (колено 4)» |
+| seed | «seed: входящие неполные» |
+| `external_inflow` | «отдаёт больше наблюдаемого входа — вероятны внешние поступления» |
+| изолят | «переводов в выгрузке нет — данных недостаточно» |
+
+**Запрещённые слова** (тест): организатор, преступник, виновен, наркоторговец, отмывание доказано.
+**Формат сумм:** `1 234 567 ₸`, `1,2 млн ₸`, `420 тыс ₸`.
+
+### 3.8. `why` для топа
+
+2–3 предложения: роль и `role_score` → **две сильнейшие компоненты приоритета** с числами → оговорка → что проверить.
+Пример: «Связующий узел (0.82). Посредничество в топ-1% и связи с 7 кластерами; вход 4,9 млн ₸ от 19 отправителей. Рекомендуется углублённая проверка контрагентов и запрос исходящих переводов».
+Общая фраза вроде «высокий приоритет» запрещена (PROJECT §4.5).
+
+### 3.9. Гипотезы кластеров (первое сработавшее правило)
+
+| ID | Условие | Текст |
+|---|---|---|
+| `H_ISOLATED` | `n_nodes = 1` и узел изолирован | «Изолированный узел: переводов в выгрузке нет, данных для гипотезы недостаточно» |
+| `H_COLLECT` | `n_seed ≥ 2` и есть coordinator/consolidator | «Признаки сбора средств от {n_seed} seed с концентрацией у {gid}» |
+| `H_FANOUT` | распределители дают > 50% исходящих сумм кластера | «Признаки веерного распределения от {gid} на {n} получателей» |
+| `H_TRANSIT` | доля transit ≥ 30% | «Признаки транзитной цепочки: средства проходят без удержания» |
+| `H_SMALL` | компонента ≤ 17 узлов, не связанная с основной | «Изолированный фрагмент из {n} узлов, связь с основной сетью не наблюдается» |
+| `H_NOSEED` | `n_seed = 0` | «Фрагмент без seed на {depth}-м колене; назначение не определено» |
+| `H_MIXED` | иначе | «Смешанная структура: {роли}; требуется ручной разбор» |
+
+---
+
+## §4. Модели результата (внутренние, JSON снимка и API)
+
+`?` — поле может быть `null`. Все `gid` — строки (§6.1).
+
+### Node
+| Поле | Тип |
+|---|---|
+| `gid` | string |
+| `depth` | int |
+| `is_seed`, `is_boundary`, `is_isolated`, `external_inflow` | bool |
+| `role`, `base_role` | string (словарь §3) |
+| `role_score`, `priority_score` | float [0, 1] |
+| `priority_rank` | int ≥ 1 |
+| `cluster_id`, `component_id` | int |
+| `in_deg`, `out_deg`, `in_tx`, `out_tx`, `seed_in`, `seed_reach`, `n_nbr_clusters`, `up_hubs`, `down_hubs` | int |
+| `in_kzt`, `out_kzt`, `betweenness`, `pagerank` | float |
+| `pass_through` | float? |
+| `evidence` | string ≤ 200 |
+| `x`, `y` | float (раскладка §4.1) |
+| `temporal` | object? (P2: `fast_pass_share`, `max_senders_same_day`, `active_days`) |
+
+### EvidenceDetail (в карточке узла)
+| Поле | Тип |
+|---|---|
+| `rule_id` | `R_CONS` · `R_DIST` · `R_TRANS` · `R_TERM` · `R_COORD` · `R_PERIPH` |
+| `rule_text` | string: правило словами |
+| `thresholds` | `{имя: число}` |
+| `values` | `{признак: число \| null}` — фактические значения, использованные правилом |
+| `strength` | float |
+| `alternatives` | `[{role, rule_id, strength}]` — другие сработавшие правила |
+| `limitations` | `[ "boundary" \| "seed_inflow_incomplete" \| "external_inflow" \| "isolated" ]` |
+| `priority_contributions` | `{in_kzt, betweenness, n_nbr_clusters, seed_reach, role, seed_factor}` |
+| `why` | string? (заполнен для топ-100) |
+
+### Edge
+`src` string · `dst` string · `sum_kzt` float · `n_tx` int · `depth` int · `first_date` `YYYY-MM-DD` · `last_date` `YYYY-MM-DD`
+
+### Cluster
+`cluster_id` int · `n_nodes` int · `n_seed` int · `sum_kzt_internal` float · `top_gids` string[] (до 5) · `hypothesis` string · `hypothesis_rule` string · `role_counts` `{роль: int}` · `component_ids` int[]
+
+### TopNode
+`rank` int · `gid` string · `role` string · `priority_score` float · `why` string
+
+### AnalysisRun
+| Поле | Тип |
+|---|---|
+| `run_id` | string `YYYYMMDDTHHMMSSZ-<8 hex>`; хвост — sha256(входы + конфиг) |
+| `status` | `succeeded` · `failed` |
+| `methodology_version` | `roles-v1` |
+| `contract_version` | `2.0` |
+| `created_at` | ISO 8601 UTC |
+| `duration_sec` | float (чтение + валидация + расчёт + запись) |
+| `input_checksums` | `{файл: sha256}` |
+| `counts` | `{nodes, edges, transactions, seeds, clusters, components, isolated, boundary}` |
+| `role_counts` | `{роль: int}` |
+| `turnover_kzt` | float |
+| `period` | `{from, to}` |
+| `config` | копия `methodology.yaml` + вычисленные пороги (например, значение `COORD_BC_QUANTILE`) |
+| `warnings` | string[] |
+| `machine` | `{os, python, cpu, ram_gb}` |
+| `error` | string? (при `failed`) |
+
+### 4.1. Раскладка графа
+`graph/layout.py`: `nx.spring_layout(UG, seed=42, iterations=50, weight=None)` по крупнейшим компонентам; изоляты и мелкие компоненты раскладываются сеткой справа. Координаты нормированы в [−1000, 1000]. Сайт использует готовые координаты (`preset`).
+
+---
+
+## §5. Интерфейс Graph Engine → Pipeline
+
+```
+graph.analyze(data_dir: Path, config_path: Path) -> AnalysisResult
+```
+
+| Поле `AnalysisResult` | Тип | Содержание |
+|---|---|---|
+| `nodes` | DataFrame | все поля Node + колонки EvidenceDetail |
+| `edges` | DataFrame | поля Edge (gid как int64) |
+| `clusters` | DataFrame | поля Cluster |
+| `top` | DataFrame | топ-100 в порядке §3.6 |
+| `run_meta` | dict | поля AnalysisRun, кроме `run_id`, `status`, `created_at` (их ставит backend) |
+| `quality` | dict | отчёт валидации и предупреждения |
+
+- **Исключения:** `DataValidationError(message, details)` — структурная ошибка входа; любые другие — внутренняя ошибка.
+- `analyze` **не пишет файлы**. Запись, CSV и публикация — зона Backend.
+- Внутри `DataFrame` `gid` — int64. В строку он превращается только при сериализации в JSON.
+
+---
+
+## §6. Сериализация
+
+### 6.1. gid
+- **CSV и parquet:** int64, без экспоненты и без `.0`.
+- **JSON (API, снимок, примеры):** **десятичная строка** `"100000008346837100"`.
+- **TypeScript:** `type Gid = string`. Не применять `Number()` и `parseInt()`, не сортировать как числа. Для сортировки: по длине, затем лексикографически.
+- **Бот:** принимает gid как строку из 1–19 цифр.
+
+### 6.2. Числа
+| Поле | Формат |
+|---|---|
+| `role_score` | 4 знака |
+| `priority_score` | 6 знаков |
+| `sum_kzt_internal`, суммы в API | 2 знака |
+| прочие float в API | как есть, конечные |
+
+NaN и Infinity запрещены везде. В CSV все обязательные поля всегда заполнены; в JSON `null` допустим только для полей с `?`.
+
+---
+
+## §7. Выгрузки и снимок
+
+### 7.1. Раскладка `output/`
+
+```
+output/
+├── nodes_roles.csv  clusters.csv  top_nodes.csv   ← копии последнего успешного запуска (их проверяет жюри)
+├── LATEST                                          ← текстовый файл с run_id последнего успешного запуска
+├── last_attempt.json                               ← статус последней попытки (успех или ошибка)
+└── runs/<run_id>/
+    ├── nodes_roles.csv  clusters.csv  top_nodes.csv
+    ├── snapshot.json         ← {run, nodes[], edges[], clusters[], top[]}; gid строками
+    ├── run.json              ← AnalysisRun
+    └── quality_report.json
+```
+
+**Атомарная публикация (PROJECT §9, A14):** запись в `runs/<run_id>.tmp/` → проверка §15.1 → переименование в `runs/<run_id>/` → запись `LATEST` → копирование трёх CSV в корень `output/`. При ошибке `LATEST` и корневые CSV не меняются, а `last_attempt.json` получает `status: failed` и `error`. Символические ссылки не используются (Windows).
+
+### 7.2. Три обязательных CSV — строго по ТЗ
+
+Общее: UTF-8 **без BOM**, разделитель `,`, перевод строки `\n`, экранирование по RFC 4180 (`csv.QUOTE_MINIMAL`), заголовок в первой строке, без индекса. Лишних колонок нет (диагностика — в `snapshot.json`).
+
+| Файл | Колонки (строго в этом порядке) | Строк | Сортировка |
+|---|---|---|---|
+| `nodes_roles.csv` | `gid,role,role_score,cluster_id,priority_score,evidence` | ровно число узлов (2 248) | `priority_score` ↓, `gid` ↑ |
+| `clusters.csv` | `cluster_id,n_nodes,n_seed,sum_kzt_internal,top_gids,hypothesis` | число кластеров | `cluster_id` ↑ |
+| `top_nodes.csv` | `rank,gid,role,priority_score,why` | `TOP_N = 20` | `rank` ↑ |
+
+- **`top_gids`:** до 5 gid кластера по `priority_score` ↓, `gid` ↑, через `;` без пробелов: `100000008346837100;100000006866783100`.
+- **`sum_kzt_internal`:** сумма `sum_kzt` направленных рёбер, у которых оба конца внутри кластера, каждое ребро один раз.
+- Сумма `n_nodes` по кластерам = число узлов.
+- `role` и `priority_score` в `top_nodes.csv` совпадают с `nodes_roles.csv` того же запуска.
+
+### 7.3. Команда
+
+```
+python run_pipeline.py --data ./data --output ./output [--config ./config/methodology.yaml]
+```
+Код возврата: `0` — успех; `2` — ошибка входных данных; `1` — внутренняя ошибка. В консоль печатаются проверки, распределение ролей, время по этапам и итоговое время. Цель — < 300 с, ожидаемо < 15 с (betweenness ~1.5 с).
+
+---
+
+## §8. REST API (`backend/api.py`, FastAPI)
+
+Базовый путь `/api/v1`. По умолчанию `http://127.0.0.1:8000`. API загружает `output/LATEST` → `snapshot.json` в память при старте и по `POST /api/v1/reload`. `/` отдаёт `frontend/dist`, если папка есть.
+
+### 8.1. Эндпоинты
+
+| Метод | Путь | Параметры | Ответ |
+|---|---|---|---|
+| GET | `/health` | — | `{status: "ok", run_id?, assistant_enabled}` |
+| GET | `/overview` | — | AnalysisRun + `last_attempt` |
+| GET | `/graph` | — | `{nodes: [NodeShort], edges: [Edge], run_id}` — весь граф для обзора (~2 248 узлов, ~3 119 рёбер) |
+| GET | `/nodes` | `q` (префикс gid), `role`, `cluster_id`, `is_seed`, `sort=priority` \| `gid`, `limit` (≤ 200, по умолч. 50), `offset` | `{items: [NodeShort], total, limit, offset}` |
+| GET | `/nodes/{gid}` | — | `{node: Node, evidence_detail: EvidenceDetail}` |
+| GET | `/nodes/{gid}/neighbors` | `direction=in\|out\|both`, `limit` (≤ 500) | `{items: [{edge: Edge, node: NodeShort}], total, truncated}` |
+| GET | `/subgraph` | `gid` + `depth` (1–2) **или** `cluster_id`; `max_nodes` (≤ 500, по умолч. 300) | `{nodes, edges, truncated, limits: {max_nodes}}` |
+| GET | `/top` | `n` (1–100, по умолч. 20) | `{items: [TopNode + role_score + cluster_id], run_id}` |
+| GET | `/clusters` | `limit` (≤ 200), `offset` | `{items: [Cluster], total}` |
+| GET | `/clusters/{cluster_id}` | — | `{cluster: Cluster, nodes: [NodeShort]}` |
+| GET | `/export/{name}` | `name` ∈ `nodes_roles.csv`, `clusters.csv`, `top_nodes.csv` | файл CSV (`text/csv; charset=utf-8`, attachment) |
+| POST | `/reload` | — | `{run_id}` |
+| POST | `/assistant` | `{question, history?}` | P2, §11 |
+
+**NodeShort:** `gid, role, role_score, priority_score, priority_rank, cluster_id, is_seed, is_boundary, is_isolated, depth, x, y`.
+
+### 8.2. Ошибки
+
+Формат: `{"error": {"code": "...", "message": "...", "details": {}}}`, `message` на русском.
+
+| code | HTTP | Когда |
+|---|---|---|
+| `invalid_gid` | 400 | не 1–19 цифр |
+| `invalid_param` | 400 | параметр вне допустимых значений |
+| `not_found` | 404 | gid или кластер отсутствует |
+| `no_result` | 503 | нет ни одного успешного запуска |
+| `assistant_disabled` | 503 | нет ключа или P2 не включён |
+| `internal` | 500 | прочее |
+
+CORS: разрешён `http://localhost:5173` (dev-сервер Vite).
+
+---
+
+## §9. Сайт (P0) — обязательства перед контрактом
+
+- React + Vite + **TypeScript** + Cytoscape.js. Интерфейс на русском. **Без внешних CDN, онлайн-шрифтов и LLM.**
+- **Маршруты (hash, нужны боту):** `#/` обзор · `#/node/<gid>` · `#/cluster/<id>` · `#/top`.
+- **Русские подписи ролей:** consolidator — «Консолидатор» · transit — «Транзит» · distributor — «Распределитель» · terminal — «Конечный получатель» · coordinator — «Координатор (кандидат)» · peripheral — «Периферия».
+- **Цвета:** coordinator `#D62728` · consolidator `#FF7F0E` · distributor `#9467BD` · transit `#1F77B4` · terminal `#2CA02C` · peripheral `#BDBDBD`. Seed — толстая тёмная обводка, граница — пунктир, изолят — полый кружок.
+- **Состояния:** нет данных (`no_result`), расчёт не удался (`last_attempt.status = failed`), узел не найден, фильтр пуст, API недоступен.
+- Постоянная плашка: «Результаты — гипотезы для проверки, а не выводы о виновности».
+- Подробности — в `TASKS_FRONTEND.md`.
+
+---
+
+## §10. Telegram-бот (P1)
+
+- aiogram 3, long polling, **только через API §8**. Никаких формул и parquet.
+- Команды: `/start`, `/help`, `/overview`, `/top [N]` (N от 1 до 50, по умолч. 20), `/node <gid>`, `/cluster <id>`.
+- Ответ ≤ 4 096 символов; длиннее — разбивка на страницы с кнопками «◀ ▶».
+- Кнопка «Открыть на сайте» → `WEB_BASE_URL/#/node/<gid>` и т. п., **только если `WEB_BASE_URL` задан и это не `localhost`/`127.0.0.1`**.
+- Доступ: только `TELEGRAM_ALLOWED_USER_IDS`; остальным — «Нет доступа».
+- Нет `TELEGRAM_BOT_TOKEN` → бот не стартует, пишет понятное сообщение; P0 не затронут.
+- Таймаут запроса к API 10 с → «Сервис анализа недоступен, попробуйте позже».
+- **Сеть:** ТЗ §9 разрешает интернет только для LLM API. Живое демо бота — только после подтверждения организаторов (§17).
+
+---
+
+## §11. AI-ассистент (P2, владелец — Graph+AI)
+
+- **Включается только** при `ASSISTANT_ENABLED=1` и заданном `OPENAI_API_KEY`. Иначе `assistant_disabled`.
+- Живёт в `backend/assistant/`, отвечает через `POST /api/v1/assistant`: `{question, history?}` → `{answer, gids: [string], tool_calls: [{name, args}], mode: "ai"}`.
+- **Инструменты — ограниченные операции над снимком** (те же данные, что у API):
+
+| Инструмент | Что возвращает |
+|---|---|
+| `get_node(gid)` | Node + EvidenceDetail + до 10 соседей |
+| `get_neighbors(gid, direction, limit ≤ 20)` | соседи с суммами |
+| `common_downstream(gids[≤ 10], max_depth ≤ 4)` | узлы, достижимые из всех указанных, по priority |
+| `common_upstream(gids[≤ 10], max_depth ≤ 4)` | общие источники |
+| `find_paths(src, dst, max_len ≤ 6, limit ≤ 5)` | пути денег |
+| `get_top(n ≤ 20, role?, cluster_id?)` | топ с фильтрами |
+| `get_cluster(cluster_id)` | Cluster + топ-узлы |
+
+- **Модель не видит граф целиком и не считает цифры.** Все числа и gid в ответе — из результатов инструментов.
+- **Запрещено:** менять роли и score, генерировать CSV и evidence, делать выводы о виновности, выдумывать атрибуты.
+- В ответе gid пишется как `#gid`; сайт превращает его в ссылку `#/node/<gid>`.
+- **Передача во внешний LLM:** только агрегаты, нужные для конкретного вопроса (gid синтетические, персональных данных нет). Датасет — только для хакатона (ТЗ §6).
+- До 5 шагов агента, таймаут 30 с, история до 6 сообщений.
+
+---
+
+## §12. Конфигурация и окружение
+
+### 12.1. `config/methodology.yaml` (владелец — Graph)
+`version`, `random_seed: 42`, `cons_min_in_deg: 5`, `dist_min_out_deg: 10`, `transit_low: 0.8`, `transit_high: 1.2`, `term_min_in_kzt: 300000`, `coord_bc_quantile: 0.99`, `coord_min_nbr_clusters: 2`, `coord_min_hubs: 2`, `boundary_factor: 0.8`, `isolated_role_score: 0.3`, `external_inflow_ratio: 1.2`, `seed_factor: 0.75`, `priority_weights: {in_kzt: 0.25, betweenness: 0.20, n_nbr_clusters: 0.15, seed_reach: 0.15, role: 0.25}`, `role_weights: {...}`, `louvain_resolution: 1.0`, `top_n: 20`, `top_n_api: 100`, `evidence_max_len: 200`.
+
+### 12.2. `.env.example`
+| Переменная | Кто | По умолч. |
+|---|---|---|
+| `OUTPUT_DIR` | backend | `./output` |
+| `API_HOST` / `API_PORT` | backend | `127.0.0.1` / `8000` |
+| `VITE_API_BASE_URL` | frontend (dev) | `http://127.0.0.1:8000/api/v1` |
+| `TELEGRAM_BOT_TOKEN` | бот | пусто → бот выключен |
+| `TELEGRAM_ALLOWED_USER_IDS` | бот | пусто → доступ закрыт всем |
+| `API_BASE_URL` | бот | `http://127.0.0.1:8000/api/v1` |
+| `WEB_BASE_URL` | бот | пусто → без кнопки |
+| `ASSISTANT_ENABLED` | ассистент | `0` |
+| `OPENAI_API_KEY` / `OPENAI_MODEL` | ассистент | пусто |
+
+### 12.3. Зависимости (`requirements.txt`, `==`)
+`pandas`, `pyarrow`, `networkx`, `numpy`, **`scipy` (обязателен: без него `nx.pagerank` падает — в `starter/requirements.txt` его нет)**, `pyyaml`, `fastapi`, `uvicorn`, `pytest`, `httpx`; для P1 — `aiogram`; для P2 — `openai` (в `requirements-optional.txt`).
+
+### 12.4. Сборка сайта
+Финальный `frontend/dist` коммитится: судье для просмотра достаточно Python. Исходники и `package-lock.json` тоже в репозитории.
+
+---
+
+## §13. Ссылки и лимиты для клиентов
+
+| Лимит | Значение |
+|---|---|
+| `/top` n | 1–100 (бот — до 50) |
+| `/nodes` limit | ≤ 200 |
+| `/neighbors` limit | ≤ 500 |
+| `/subgraph` max_nodes | ≤ 500 |
+| Страница бота | ≤ 4 096 символов |
+| gid | 1–19 цифр |
+
+Если лимит срезал данные, в ответе `truncated: true`, и клиент **явно** показывает «показаны не все связи».
+
+---
+
+## §14. Синтетические примеры (`contracts/examples/`)
+
+Lead коммитит к **13:30**: `overview.json`, `graph.json` (≈ 30 узлов всех ролей, включая изолят и границу), `node.json`, `neighbors.json`, `top.json`, `clusters.json`, `cluster.json`, `error_not_found.json`, `error_no_result.json`.
+- В каждом корне поле `"_synthetic": true`, а gid начинаются с `9000000000000000`. Это нельзя выдать за реальные результаты.
+- Frontend и бот работают на них до готовности API.
+
+---
+
+## §15. Проверки
+
+### 15.1. Контрактные проверки перед публикацией (backend, внутри pipeline)
+1. Множество gid в `nodes_roles.csv` = `nodes.gid`, без дублей.
+2. `role` ∈ словарь; оба score конечны и в [0, 1]; `evidence` непустой, ≤ 200.
+3. Каждый `cluster_id` есть в `clusters.csv`; Σ `n_nodes` = число узлов.
+4. `top_nodes.csv`: ≥ min(20, число узлов) строк, `rank` 1…N без пропусков, уникальные gid, `role` и `priority_score` совпадают с `nodes_roles.csv`, `why` непустой.
+5. Нет NaN и Infinity; колонки строго в порядке §7.2.
+6. Ни один `is_boundary` не имеет `role = terminal`.
+
+### 15.2. Тесты (`pytest`, без сети)
+| Кто | Что |
+|---|---|
+| Graph | синтетические мини-графы: веер → `distributor`; сбор → `consolidator`; A→B→C с 95% пропуском → `transit`; depth 4 без выхода → **не** `terminal`; изолят → `peripheral` с оговоркой; нулевой вход без деления на ноль; seed не получает `transit` |
+| Graph | детерминизм: два вызова `analyze` → одинаковые DataFrame |
+| Graph | в `graph/` нет числовых литералов ≥ 10¹⁵ (защита от захардкоженных gid) |
+| Graph | в evidence и why нет запрещённых слов |
+| Backend | A01 (время < 300 с), A10 (побайтовое совпадение CSV двух запусков), A14 (нет файла, дубль gid, неизвестный узел → код 2 и неизменный `LATEST`) |
+| Backend | A11: для 5 случайных gid API = CSV |
+| Frontend | сборка без ошибок TypeScript; gid не превращается в number (ручная проверка на `100000008346837100`) |
+| Бот | неверный gid, неизвестный gid, недоступный API |
+
+### 15.3. Приёмка PROJECT §14
+| ID | Где проверяется |
+|---|---|
+| A01, A10, A14 | тесты Backend |
+| A02, A03, A05, A06 | §15.1 + тесты Graph |
+| A04 | репетиция: 3 случайных gid за минуту по карточке |
+| A07 | ручная проверка сайта: поиск изолята, узла границы, узла вне фильтра |
+| A08, A09 | тесты Graph |
+| A11 | тест Backend + ручная сверка сайта и бота |
+| A12 | запуск с отключённым Wi-Fi |
+| A13 | ручная проверка бота |
+| A15 | чек-лист сдачи |
+
+---
+
+## §16. Данные и безопасность
+
+- `data/` в `.gitignore`: датасет не публикуется без разрешения организаторов (PROJECT §10). README объясняет, куда положить файлы.
+- Логи без токенов и без массовых копий транзакций.
+- Никаких ФИО, ИИН и придуманных атрибутов.
+
+---
+
+## §17. Открытые вопросы и решения
+
+| # | Вопрос | Решение / статус |
+|---|---|---|
+| 1 | PROJECT §3.2: противоречие про компоненты | **Решено** в §2.3 |
+| 2 | Starter README: «лишние колонки добавлять можно»; ТЗ: «фиксированная схема» | **Решено:** лишних колонок нет, диагностика в `snapshot.json` |
+| 3 | Живое демо Telegram при ТЗ §9 | **Открыт:** Lead спрашивает организаторов до 15:00 |
+| 4 | Можно ли коммитить `data/` в репозиторий организатора | **Открыт:** по умолчанию нет |
+| 5 | TOP_N: 20 (PROJECT) | **Решено:** CSV — 20, API — до 100 |
+| 6 | `starter/requirements.txt` без scipy | **Решено:** scipy в наших зависимостях |
+
+---
+
+## §18. План (00:00 = 13:00)
+
+| Время | Graph + AI | Backend + бот | Frontend | Общая точка |
+|---|---|---|---|---|
+| 13:00–13:30 | `methodology.yaml`, каркас `analyze()`, примеры `contracts/` | каркас `run_pipeline.py`, экспорт, API на примерах | каркас, типы, Cytoscape на `graph.json`-примере | контракт v2.0 в `main`, ветки созданы |
+| 13:30–14:30 | признаки, кластеры, роли v1, evidence → первый полный результат | CSV + снимок + атомарная публикация + API | граф, легенда, поиск | — |
+| 14:30–15:30 | priority, why, гипотезы, тесты правил | тесты A01/A10/A14, `/export` | карточки узла и кластера, топ, фильтры | **первый сквозной прогон** parquet → CSV → API → сайт |
+| 15:30–16:30 | калибровка, разбор 10 узлов, P2-ассистент в `feature/assistant` | бот P1 | состояния, скачивание, обзор, сборка `dist` | бот подключён к API |
+| 16:30–17:15 | приёмка A02–A09 | чистый запуск, замер | приёмка A07 | **зелёная приёмка P0** |
+| 17:15–18:00 | README (методика), диаграмма, демо | README (запуск) | финальный `dist` | финальный коммит до 17:55 |
+
+Коммит **каждый час в каждой ветке** (Положение 5.4.8). Интеграция в `main` — не реже раза в час, начиная с 14:30.
+
+### Журнал изменений
+| Версия | Время | Изменения |
+|---|---|---|
+| 1.0 | утро | контракт под ТЗ, до PROJECT.md |
+| 2.0 | до 13:30 | фактическая схема данных; методика `roles-v1` с калибровкой; модели, API v1, снимок, сериализация gid строкой; бот P1; ассистент P2; структура и ветки по PROJECT |
