@@ -1,3 +1,5 @@
+import type { Language } from "../i18n"
+import { translate } from "../interfaceCopy"
 import { useEffect, useMemo, useRef, useState } from 'react'
 import cytoscape, { type Core } from 'cytoscape'
 import { Maximize2, Minus, Plus, Pause, Play, Activity, Network, Layers3 } from 'lucide-react'
@@ -10,6 +12,7 @@ import type { Trace } from '../investigation'
 
 type Mode = 'priority' | 'role' | 'cluster'
 interface Props {
+  language: Language
   limit: number
   trace: Trace | null; onClearTrace: () => void; onSelectEdge: (id:string)=>void; selectedEdgeId: string|null
   contextIds?: string[]; contextLabel?: string; onExitContext: () => void
@@ -18,7 +21,8 @@ interface Props {
 }
 const modeIcons = [Activity, Network, Layers3]
 
-export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode, onColorMode, motion, onMotion, limit, contextIds, contextLabel, onExitContext, trace, onClearTrace, onSelectEdge, selectedEdgeId }: Props) {
+export function DesignNetwork({ language, nodes, edges, selectedId, onSelect, t, colorMode, onColorMode, motion, onMotion, limit, contextIds, contextLabel, onExitContext, trace, onClearTrace, onSelectEdge, selectedEdgeId }: Props) {
+  const tr = (text: string, values: Record<string,string|number> = {}) => translate(language,text,values)
   const container = useRef<HTMLDivElement>(null)
   const flowCanvas = useRef<HTMLCanvasElement>(null)
   const graph = useRef<Core | null>(null)
@@ -141,18 +145,18 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
         return <button key={mode} aria-pressed={colorMode === mode} onClick={() => onColorMode(mode)}><Icon size={12}/>{[t.signals, t.roles, t.clusters][index]}</button>
       })}</div>
       <div className="network-controls">
-        {!contextIds && !trace && <><button className="neighborhood-button" aria-label="Связи выбранного узла" aria-pressed={view==='neighbors'} onClick={() => setView(v=>v==='neighbors'?'top':'neighbors')}>Связи узла</button>
-        <button className="full-graph-button" aria-pressed={view==='all'} onClick={() => setView(v=>v==='all'?'top':'all')}>{view==='all'?`Топ-${limit}`:'Все узлы'}</button></>}
-        {trace && <button className="full-graph-button" onClick={onClearTrace}>Вернуться к сети</button>}
-        {contextIds && <button className="full-graph-button" onClick={onExitContext}>Сбросить уровень</button>}
+        {!contextIds && !trace && <><button className="neighborhood-button" aria-label={tr("Связи выбранного узла")} aria-pressed={view==='neighbors'} onClick={() => setView(v=>v==='neighbors'?'top':'neighbors')}>{tr("Связи узла")}</button>
+        <button className="full-graph-button" aria-pressed={view==='all'} onClick={() => setView(v=>v==='all'?'top':'all')}>{view==='all'?tr("Топ-{n}",{n:limit}):tr("Все узлы")}</button></>}
+        {trace && <button className="full-graph-button" onClick={onClearTrace}>{tr("Вернуться к сети")}</button>}
+        {contextIds && <button className="full-graph-button" onClick={onExitContext}>{tr("Сбросить уровень")}</button>}
         <button disabled={visible.nodes.length > 100} aria-label={motion ? t.pause : t.play} aria-pressed={motion} onClick={onMotion}>{motion ? <Pause size={14}/> : <Play size={14}/>}</button>
         <button aria-label={t.zoomOut} onClick={() => zoomBy(-.2)}><Minus size={15}/></button>
         <button aria-label={t.zoomIn} onClick={() => zoomBy(.2)}><Plus size={15}/></button>
         <button aria-label={t.fit} onClick={() => graph.current?.fit(undefined, 28)}><Maximize2 size={15}/></button>
       </div>
     </div>
-    {trace && <div className="graph-context-note"><b>Направленная цепочка · {trace.edgeIds.length} связей</b><span>Нажмите на связь, чтобы открыть факты</span></div>}
-    {contextIds && <div className="graph-context-note"><span><b>{contextLabel}: {contextIds.length}</b> · все непосредственные соседи и связи между ними</span><span>Обведённые узлы — выбранный уровень</span></div>}
+    {trace && <div className="graph-context-note"><b>{tr("Направленная цепочка · {n} связей", {n:trace.edgeIds.length})}</b><span>{tr("Нажмите на связь, чтобы открыть факты")}</span></div>}
+    {contextIds && <div className="graph-context-note"><span><b>{contextLabel}: {contextIds.length}</b> · {tr("все непосредственные соседи и связи между ними")}</span><span>{tr("Обведённые узлы — выбранный уровень")}</span></div>}
     <div className="network-viewport">
       <div className="cy-container" ref={container}/>
       <canvas ref={flowCanvas} className="flow-canvas" aria-hidden="true"/>
@@ -162,6 +166,6 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
       {colorMode === 'role' ? roleOrder.map((role, index) => <span key={role}><i className="legend-dot" style={{background:roleMeta[role].color}}/>{t.role[index]}</span>)
         : [...new Set(visible.nodes.map(node => node.clusterId))].sort((a, b) => a - b).map(id => <span key={id}><i className="legend-dot" style={{background:getClusterColor(id)}}/>{t.cluster} #{id}</span>)}
     </div>}
-    <div className="network-bottom"><span><i/>{t.direction}</span><span>{trace?'Цепочка · ':contextIds?'Полное окружение · ':view==='neighbors'?'Связи узла · ':view==='top'?'Приоритетные · ':''}{visible.nodes.length} из {nodes.length} узлов · {visible.edges.length} связей</span></div>
+    <div className="network-bottom"><span><i/>{t.direction}</span><span>{trace?tr('Цепочка')+' · ':contextIds?tr('Полное окружение')+' · ':view==='neighbors'?tr('Связи узла')+' · ':view==='top'?tr('Приоритетные')+' · ':''}{tr('{visible} из {total} узлов · {edges} связей',{visible:visible.nodes.length,total:nodes.length,edges:visible.edges.length})}</span></div>
   </div>
 }

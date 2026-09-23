@@ -56,7 +56,7 @@ export function checkChronology(edges: GraphEdge[]) {
   let earliest = ''
   for (let i=0; i<edges.length; i++) {
     const edge = edges[i]
-    if (edge.lastDate! < earliest) return { status:'conflict',
+    if (edge.lastDate! < earliest) return { status:'conflict', step:i+1, lastDate:edge.lastDate!, earliest,
       message:`Хронология не сходится: на шаге ${i+1} последний перевод был ${edge.lastDate}, а предыдущие шаги требуют даты не раньше ${earliest}. Эта цепочка не описывает последовательное движение средств в наблюдаемом периоде.` }
     if (edge.firstDate! > earliest) earliest = edge.firstDate!
   }
