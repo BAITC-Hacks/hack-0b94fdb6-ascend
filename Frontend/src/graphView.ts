@@ -1,7 +1,7 @@
 import type { GraphNode, GraphEdge } from './types/graph'
 
 /** Bound the actual Cytoscape dataset, not merely the visibility of its elements. */
-export function selectGraphView(nodes: GraphNode[], edges: GraphEdge[], selectedId: string, mode: 'top' | 'neighbors' | 'all') {
+export function selectGraphView(nodes: GraphNode[], edges: GraphEdge[], selectedId: string, mode: 'top' | 'neighbors' | 'all', limit = 100) {
   if (mode === 'all') return { nodes, edges }
   const neighbors = new Set([selectedId])
   if (mode === 'neighbors') for (const edge of edges) {
@@ -12,9 +12,8 @@ export function selectGraphView(nodes: GraphNode[], edges: GraphEdge[], selected
     .sort((a, b) => b.priorityScore - a.priorityScore || a.id.localeCompare(b.id))
   const selected = candidates.find(n => n.id === selectedId)
   const shown = selected
-    ? [selected, ...candidates.filter(n => n.id !== selectedId).slice(0, 99)]
-    : candidates.slice(0, 100)
+    ? [selected, ...candidates.filter(n => n.id !== selectedId).slice(0, limit - 1)]
+    : candidates.slice(0, limit)
   const ids = new Set(shown.map(n => n.id))
-  return { nodes: shown, edges: edges.filter(e => ids.has(e.source) && ids.has(e.target) &&
-    (mode !== 'neighbors' || e.source === selectedId || e.target === selectedId)) }
+  return { nodes: shown, edges: edges.filter(e => ids.has(e.source) && ids.has(e.target)) }
 }

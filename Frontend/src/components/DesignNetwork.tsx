@@ -10,17 +10,20 @@ import { selectGraphView } from '../graphView'
 
 type Mode = 'priority' | 'role' | 'cluster'
 interface Props {
+  limit: number
   nodes: GraphNode[]; edges: GraphEdge[]; selectedId: string; onSelect: (id: string) => void
   t: Copy; colorMode: Mode; onColorMode: (mode: Mode) => void; motion: boolean; onMotion: () => void
 }
 const modeIcons = [Activity, Network, Layers3]
 
-export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode, onColorMode, motion, onMotion }: Props) {
+export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode, onColorMode, motion, onMotion, limit }: Props) {
   const container = useRef<HTMLDivElement>(null)
   const flowCanvas = useRef<HTMLCanvasElement>(null)
   const graph = useRef<Core | null>(null)
   const [view, setView] = useState<'top'|'neighbors'|'all'>('top')
-  const visible = useMemo(() => selectGraphView(nodes, edges, selectedId, view), [nodes, edges, selectedId, view])
+  // Loading more from the priority list also returns the canvas to that list.
+  useEffect(() => setView('top'), [limit])
+  const visible = useMemo(() => selectGraphView(nodes, edges, selectedId, view, limit), [nodes, edges, selectedId, view, limit])
   const handler = useRef(onSelect)
   handler.current = onSelect
 
@@ -43,9 +46,9 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
         { selector: 'node.seed', style: { 'border-width': 3, 'border-color': '#ecedb8' } },
         { selector: 'node.boundary', style: { 'border-width': 2, 'border-style': 'dashed', 'border-color': '#afbab0' } },
         { selector: 'node.isolated', style: { 'background-opacity': 0, 'border-width': 1, 'border-color': '#afbab0' } },
-        { selector: 'edge', style: { width: 1.2, 'line-color': 'data(color)', 'target-arrow-color': 'data(color)',
+        { selector: 'edge', style: { width: 1.5, 'line-color': 'data(color)', 'target-arrow-color': 'data(color)',
           'target-arrow-shape': 'triangle', 'arrow-scale': .75, 'curve-style': 'unbundled-bezier',
-          'control-point-distances': 35, 'control-point-weights': .5, opacity: .3 } },
+          'control-point-distances': 35, 'control-point-weights': .5, opacity: .5 } },
         { selector: 'edge.focused', style: { width: 2.2, opacity: .75 } },
         { selector: 'edge.hovered', style: { width: 3, opacity: 1, label: 'data(amount)', color: '#effff5',
           'font-size': 12, 'text-background-color': '#091711', 'text-background-opacity': 1, 'text-background-padding': '5px' } },
@@ -104,7 +107,7 @@ export function DesignNetwork({ nodes, edges, selectedId, onSelect, t, colorMode
       })}</div>
       <div className="network-controls">
         <button className="neighborhood-button" aria-label="Связи выбранного узла" aria-pressed={view==='neighbors'} onClick={() => setView(v=>v==='neighbors'?'top':'neighbors')}>1 hop</button>
-        <button className="full-graph-button" aria-pressed={view==='all'} onClick={() => setView(v=>v==='all'?'top':'all')}>{view==='all'?'Топ-100':'Все узлы'}</button>
+        <button className="full-graph-button" aria-pressed={view==='all'} onClick={() => setView(v=>v==='all'?'top':'all')}>{view==='all'?`Топ-${limit}`:'Все узлы'}</button>
         <button disabled={visible.nodes.length > 100} aria-label={motion ? t.pause : t.play} aria-pressed={motion} onClick={onMotion}>{motion ? <Pause size={14}/> : <Play size={14}/>}</button>
         <button aria-label={t.zoomOut} onClick={() => zoomBy(-.2)}><Minus size={15}/></button>
         <button aria-label={t.zoomIn} onClick={() => zoomBy(.2)}><Plus size={15}/></button>
