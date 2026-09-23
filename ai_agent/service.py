@@ -25,6 +25,15 @@ SYSTEM = '''Ты помощник AML-аналитика. Ответь по-ру
 Суммы и оценки копируй без округления и смены единиц; не переводи доли в проценты.
 Названия ролей можно переводить на русский, но нельзя назначать новые роли.'''
 
+SYSTEM += '''
+Планируй необходимые проверки по смыслу вопроса: сначала карточка узла, затем при
+необходимости соседи, пути или общие получатели. Итог должен отвечать на вопрос.
+Не пересказывай все метрики: выбери наиболее значимые факты и объясни их смысл.
+Не округляй даже длинные дроби: лучше опусти число и опиши признак словами.
+Пустой список limitations не означает полноту данных или отсутствие временных ограничений.
+Глубина — расстояние в обходе от seed, а не положение на периферии.
+Альтернативные роли не являются дополнительными назначенными ролями.'''
+
 
 class AssistantError(RuntimeError):
     def __init__(self, code, message, status=503):
@@ -53,6 +62,8 @@ def collect_gids(value):
 
 def numbers(text):
     """Allow equivalent decimal formatting, but never invent/round source values."""
+    # Methodology notation p99 and natural language '99-й процентиль' are equivalent.
+    text = re.sub(r'\bp(\d{1,2})(?!\d)', r'\1', text)
     tokens = re.findall(r'(?<![\w])(?:[0-9]{1,3}(?:[ \u00a0\u202f][0-9]{3})+(?:[.,][0-9]+)?|[0-9]+(?:[.,][0-9]+)?(?:[eE][+-]?[0-9]+)?)', text)
     result = set()
     for token in tokens:
@@ -107,10 +118,11 @@ class Assistant:
 
     async def _run(self, messages):
         trace, facts, allowed = [], [], set()
+        repairing = False
         for step in range(5):
             response = await self.client.responses.create(
                 model=self.model, instructions=SYSTEM, input=messages, tools=TOOL_SCHEMAS,
-                tool_choice='required' if step == 0 else ('none' if step == 4 or len(trace) >= 5 else 'auto'),
+                tool_choice='required' if step == 0 else ('none' if repairing or step == 4 or len(trace) >= 5 else 'auto'),
                 parallel_tool_calls=False, store=False, max_output_tokens=2500,
                 include=['reasoning.encrypted_content'])
             messages.extend(response.output)
@@ -127,6 +139,20 @@ class Assistant:
                        not numbers(answer) <= numbers(source_text) or
                        re.search(r'организатор|преступник|виновен|наркоторговец|отмывание доказано', answer, re.I))
                 if bad:
+                    if step < 4:
+                        # Repair within the same request/time budget using existing tool facts.
+                        # Never relax validation or send an unverified draft to the user.
+                        unsupported = sorted(numbers(answer) - numbers(source_text))
+                        messages.append({'role': 'developer', 'content':
+                            'Исправь последний черновик по уже полученным результатам инструментов. '
+                            'Не делай новых вызовов. Удали округлённые/неподтверждённые числа '
+                            + ', '.join(str(n) for n in unsupported) + '. '
+                            'Используй только GID из результатов, каждый с #. '
+                            'Не делай обвинительных выводов. Напиши краткий ответ на исходный вопрос: '
+                            'роль, наблюдаемые признаки, ограничения и что проверить. '
+                            'Не упоминай внутреннюю проверку. Числа можно опустить, но не выдумывать.'})
+                        repairing = True
+                        continue
                     raise AssistantError('internal', 'Ответ не прошёл проверку опоры на данные; уточните вопрос', 500)
                 return {'answer': answer, 'gids': sorted(cited, key=int), 'tool_calls': trace, 'mode': 'ai'}
             if len(trace) + len(calls) > 5:
