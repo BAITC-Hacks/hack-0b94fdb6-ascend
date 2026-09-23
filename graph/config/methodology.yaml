@@ -1,0 +1,31 @@
+version: roles-v1
+random_seed: 42
+cons_min_in_deg: 5
+dist_min_out_deg: 10
+transit_low: 0.8
+transit_high: 1.2
+term_min_in_kzt: 300000
+coord_bc_quantile: 0.99
+coord_min_nbr_clusters: 2
+coord_min_hubs: 2
+boundary_factor: 0.8
+isolated_role_score: 0.3
+external_inflow_ratio: 1.2
+seed_factor: 0.75
+priority_weights: {in_kzt: 0.25, betweenness: 0.20, n_nbr_clusters: 0.15, seed_reach: 0.15, role: 0.25}
+role_weights: {coordinator: 1.0, consolidator: 0.8, distributor: 0.7, transit: 0.6, terminal: 0.4, peripheral: 0.0}
+louvain_resolution: 1.0
+top_n: 20
+top_n_api: 100
+evidence_max_len: 200
+boundary_depth: 4
+pagerank_alpha: 0.85
+layout_iterations: 50
+layout_small_component: 17
+cluster_fanout_share: 0.5
+cluster_transit_share: 0.3
+cluster_collect_seeds: 2
+reference_counts: {nodes: 2248, edges: 3119, transactions: 4840, seeds: 81, components: 35}
+reference_depth_counts: {0: 81, 1: 472, 2: 462, 3: 789, 4: 444}
+reference_turnover_kzt: 365890012.01
+reference_period: {from: '2026-07-01', to: '2026-07-31'}
